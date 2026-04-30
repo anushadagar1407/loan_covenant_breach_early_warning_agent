@@ -1,0 +1,74 @@
+{
+  "borrowers": [
+    {
+      "borrower_id": "CORP-001",
+      "name": "Meridian Industrial GmbH",
+      "covenants": {
+        "max_debt_to_ebitda": 4.5,
+        "min_interest_coverage": 2.5,
+        "min_liquidity_ratio": 1.2
+      },
+      "has_accounting_adjustments": true,
+      "adjustment_description": "EBITDA may be adjusted upward by up to 15% for non-recurring restructuring charges incurred in the reporting period",
+      "has_grace_period": true,
+      "grace_period_days": 30,
+      "grace_period_description": "Borrower has 30 business days to cure any covenant breach before it becomes an Event of Default"
+    },
+    {
+      "borrower_id": "CORP-002",
+      "name": "Albrecht Logistics AG",
+      "covenants": {
+        "max_debt_to_ebitda": 5.0,
+        "min_interest_coverage": 2.5,
+        "min_liquidity_ratio": 1.0
+      },
+      "has_accounting_adjustments": false,
+      "adjustment_description": null,
+      "has_grace_period": false,
+      "grace_period_days": null,
+      "grace_period_description": null
+    },
+    {
+      "borrower_id": "CORP-003",
+      "name": "Rhineland Capital Partners",
+      "covenants": {
+        "max_debt_to_ebitda": 3.5,
+        "min_interest_coverage": 2.0,
+        "min_liquidity_ratio": 1.5
+      },
+      "has_accounting_adjustments": true,
+      "adjustment_description": "Up to EUR 2M of exceptional legal costs may be excluded from debt calculations for the Q2 and Q3 reporting periods only",
+      "has_grace_period": true,
+      "grace_period_days": 45,
+      "grace_period_description": "45-day cure period applies only to liquidity covenant breaches, not to leverage covenants"
+    },
+    {
+      "borrower_id": "CORP-004",
+      "name": "Dusseldorf Energy Systems GmbH",
+      "covenants": {
+        "max_debt_to_ebitda": 6.0,
+        "min_interest_coverage": 1.8,
+        "min_liquidity_ratio": 0.9
+      },
+      "has_accounting_adjustments": true,
+      "adjustment_description": "EBITDA add-back permitted for decommissioning costs up to EUR 5M per annum under Schedule 7 of the facility agreement",
+      "has_grace_period": false,
+      "grace_period_days": null,
+      "grace_period_description": null
+    },
+    {
+      "borrower_id": "CORP-005",
+      "name": "Hanseatic Trade Finance AG",
+      "covenants": {
+        "max_debt_to_ebitda": 4.0,
+        "min_interest_coverage": 2.2,
+        "min_liquidity_ratio": 1.3
+      },
+      "has_accounting_adjustments": false,
+      "adjustment_description": null,
+      "has_grace_period": true,
+      "grace_period_days": 20,
+      "grace_period_description": "Cure period of 20 business days available for first-time covenant breach only"
+    }
+  ]
+}

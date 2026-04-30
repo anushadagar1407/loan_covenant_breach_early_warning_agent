@@ -1,0 +1,254 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "SCEN-001",
+      "borrower_id": "CORP-001",
+      "pdf_filename": "CORP-001_Q3_2024.pdf",
+      "correct_verdict": "no_breach",
+      "verdict_without_adjustments": "breach",
+      "adjustment_changes_verdict": true,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 45000000,
+        "reported_ebitda": 8500000,
+        "restructuring_charges": 2200000,
+        "interest_expense": 3800000,
+        "current_assets": 12000000,
+        "current_liabilities": 9500000
+      },
+      "notes": "Without 15% restructuring adjustment, debt/EBITDA = 5.29x (breach). With adjustment, adjusted EBITDA = 10700000, ratio = 4.21x (no breach). Agent MUST check adjustment."
+    },
+    {
+      "scenario_id": "SCEN-002",
+      "borrower_id": "CORP-001",
+      "pdf_filename": "CORP-001_Q4_2024.pdf",
+      "correct_verdict": "imminent",
+      "verdict_without_adjustments": "imminent",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 50000000,
+        "reported_ebitda": 10500000,
+        "restructuring_charges": 0,
+        "interest_expense": 4200000,
+        "current_assets": 13000000,
+        "current_liabilities": 10800000
+      },
+      "notes": "Debt/EBITDA = 4.76x. Threshold is 4.5x. No restructuring charges. Grace period available."
+    },
+    {
+      "scenario_id": "SCEN-003",
+      "borrower_id": "CORP-002",
+      "pdf_filename": "CORP-002_Q3_2024.pdf",
+      "correct_verdict": "no_breach",
+      "verdict_without_adjustments": "no_breach",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 38000000,
+        "reported_ebitda": 9200000,
+        "restructuring_charges": 0,
+        "interest_expense": 3100000,
+        "current_assets": 15000000,
+        "current_liabilities": 11000000
+      },
+      "notes": "All covenants healthy. No adjustments applicable. Clean run."
+    },
+    {
+      "scenario_id": "SCEN-004",
+      "borrower_id": "CORP-002",
+      "pdf_filename": "CORP-002_Q4_2024.pdf",
+      "correct_verdict": "breach",
+      "verdict_without_adjustments": "breach",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 58000000,
+        "reported_ebitda": 10000000,
+        "restructuring_charges": 0,
+        "interest_expense": 2800000,
+        "current_assets": 9000000,
+        "current_liabilities": 11000000
+      },
+      "notes": "Debt/EBITDA = 5.8x (threshold 5.0x). Liquidity ratio = 0.82 (threshold 1.0). Clear breach."
+    },
+    {
+      "scenario_id": "SCEN-005",
+      "borrower_id": "CORP-003",
+      "pdf_filename": "CORP-003_Q3_2024.pdf",
+      "correct_verdict": "breach",
+      "verdict_without_adjustments": "breach",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 42000000,
+        "reported_ebitda": 11000000,
+        "exceptional_legal_costs": 1800000,
+        "interest_expense": 5200000,
+        "current_assets": 18000000,
+        "current_liabilities": 12000000
+      },
+      "notes": "Debt = 42M - 1.8M legal exclusion = 40.2M. 40.2M / 11M = 3.65x. Threshold 3.5x. Breach. Grace period is liquidity-only, doesn't apply here."
+    },
+    {
+      "scenario_id": "SCEN-006",
+      "borrower_id": "CORP-003",
+      "pdf_filename": "CORP-003_Q4_2024.pdf",
+      "correct_verdict": "no_breach",
+      "verdict_without_adjustments": "no_breach",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 33000000,
+        "reported_ebitda": 12000000,
+        "exceptional_legal_costs": 0,
+        "interest_expense": 5800000,
+        "current_assets": 22000000,
+        "current_liabilities": 14000000
+      },
+      "notes": "All metrics healthy. Clean quarter."
+    },
+    {
+      "scenario_id": "SCEN-007",
+      "borrower_id": "CORP-004",
+      "pdf_filename": "CORP-004_Q3_2024.pdf",
+      "correct_verdict": "no_breach",
+      "verdict_without_adjustments": "breach",
+      "adjustment_changes_verdict": true,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 72000000,
+        "reported_ebitda": 10000000,
+        "decommissioning_costs": 4500000,
+        "interest_expense": 5500000,
+        "current_assets": 8000000,
+        "current_liabilities": 7500000
+      },
+      "notes": "Raw EBITDA 10M, ratio 7.2x (breach). Add back 4.5M decommissioning = adjusted EBITDA 14.5M. Ratio = 4.97x. No breach."
+    },
+    {
+      "scenario_id": "SCEN-008",
+      "borrower_id": "CORP-004",
+      "pdf_filename": "CORP-004_Q4_2024.pdf",
+      "correct_verdict": "breach",
+      "verdict_without_adjustments": "breach",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 80000000,
+        "reported_ebitda": 8000000,
+        "decommissioning_costs": 5500000,
+        "interest_expense": 6100000,
+        "current_assets": 7500000,
+        "current_liabilities": 8200000
+      },
+      "notes": "Add-back capped at 5M per Schedule 7, adjusted EBITDA 13M. Ratio = 80/13 = 6.15x. Threshold 6.0x. Breach."
+    },
+    {
+      "scenario_id": "SCEN-009",
+      "borrower_id": "CORP-005",
+      "pdf_filename": "CORP-005_Q3_2024.pdf",
+      "correct_verdict": "no_breach",
+      "verdict_without_adjustments": "no_breach",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 28000000,
+        "reported_ebitda": 9500000,
+        "restructuring_charges": 0,
+        "interest_expense": 4000000,
+        "current_assets": 16000000,
+        "current_liabilities": 11000000
+      },
+      "notes": "All covenants healthy. Ratio 2.95x (threshold 4.0x)."
+    },
+    {
+      "scenario_id": "SCEN-010",
+      "borrower_id": "CORP-005",
+      "pdf_filename": "CORP-005_Q4_2024.pdf",
+      "correct_verdict": "imminent",
+      "verdict_without_adjustments": "imminent",
+      "adjustment_changes_verdict": false,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 39500000,
+        "reported_ebitda": 9600000,
+        "restructuring_charges": 0,
+        "interest_expense": 4300000,
+        "current_assets": 13500000,
+        "current_liabilities": 10000000
+      },
+      "notes": "Ratio = 4.11x (threshold 4.0x). Technically breached. First-time breach with 20-day cure. Flag as imminent requiring cure notice."
+    }
+  ]
+}
