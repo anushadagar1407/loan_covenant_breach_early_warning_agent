@@ -59,12 +59,18 @@ export default function Dashboard() {
   const [launching, setLaunching] = useState(false)
   const [launchMsg, setLaunchMsg] = useState('')
   const [health, setHealth] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getRegistrySummary().then(setSummary).catch(() => {})
-    api.getRuns().then(r => setRuns(r.runs.slice(0, 5))).catch(() => {})
-    api.getScenarios().then(r => setScenarios(r.scenarios)).catch(() => {})
-    api.health().then(setHealth).catch(() => {})
+    Promise.all([
+      api.getRegistrySummary().then(setSummary),
+      api.getRuns().then(r => setRuns(r.runs.slice(0, 5))),
+      api.getScenarios().then(r => setScenarios(r.scenarios)),
+      api.health().then(setHealth),
+    ]).catch((err: unknown) => {
+      console.error('Backend fetch failed', err)
+      setError((err as Error)?.message ?? 'Unable to connect to backend API')
+    })
   }, [])
 
   const handleLaunch = async () => {
@@ -120,6 +126,13 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="card" style={{ margin: '16px 0', padding: 14, border: '1px solid #FCA5A5', background: 'rgba(254,226,226,0.9)', color: '#B91C1C' }}>
+          <strong>Backend connection failed:</strong> {error}.<br />
+          Make sure the backend is running on port 8000 and that port 8000 is accessible from your browser.
+        </div>
+      )}
 
       <div className="page-content">
 

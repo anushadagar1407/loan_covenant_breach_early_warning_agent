@@ -16,7 +16,7 @@ pdfs:
 	cd backend && python scripts/generate_pdfs.py
 
 # ── Run ───────────────────────────────────────────────────────────────────────
-
+ python scripts/seed_demo_runs.py
 backend:
 	cd backend && uvicorn api.main:app --reload --port 8000
 

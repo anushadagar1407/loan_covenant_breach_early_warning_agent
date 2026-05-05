@@ -28,13 +28,20 @@ export default function RunsPage() {
   const [runs, setRuns] = useState<AgentRun[]>([])
   const [filter, setFilter] = useState<number | undefined>()
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = (level?: number) => {
     setLoading(true)
+    setError(null)
     api.getRuns(1, level).then(r => {
       setRuns(r.runs)
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(err => {
+      console.error('Failed to load runs', err)
+      setError((err as Error)?.message ?? 'Unable to load runs from backend')
+      setRuns([])
+      setLoading(false)
+    })
   }
 
   useEffect(() => { load(filter) }, [filter])
@@ -65,6 +72,11 @@ export default function RunsPage() {
       </div>
 
       <div className="page-content">
+        {error && (
+          <div className="card" style={{ margin: '16px 0', padding: 14, border: '1px solid #FCA5A5', background: 'rgba(254,226,226,0.9)', color: '#B91C1C' }}>
+            <strong>Backend error:</strong> {error}
+          </div>
+        )}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: '#4B5563', fontFamily: 'var(--mono)', fontSize: 12 }}>
