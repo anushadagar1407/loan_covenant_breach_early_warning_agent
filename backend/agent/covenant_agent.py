@@ -93,7 +93,7 @@ Return a verdict: breach, no_breach, or imminent. Use the tools available.
 """
 
 
-def create_covenant_agent(autonomy_level: int = 1) -> Agent:
+def create_covenant_agent(autonomy_level: int = 1, ollama_model: str | None = None) -> Agent:
     """
     Creates a Loan Covenant Breach agent at the specified autonomy level.
 
@@ -109,6 +109,7 @@ def create_covenant_agent(autonomy_level: int = 1) -> Agent:
 
     Args:
         autonomy_level: Integer 1, 2, or 3.
+        ollama_model: Optional Ollama model string like 'llama2:7b'.
 
     Returns:
         Configured google.adk.agents.Agent instance.
@@ -123,12 +124,18 @@ def create_covenant_agent(autonomy_level: int = 1) -> Agent:
         raise ValueError(f"autonomy_level must be 1, 2, or 3. Got: {autonomy_level}")
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    if ollama_model is None:
+        ollama_model = os.getenv("OLLAMA_MODEL", "llama2:7b")
+
+    # Strip scheme from OLLAMA_HOST for LiteLLM (avoid SSL context issues)
+    api_base = ollama_host.replace("https://", "").replace("http://", "")
+    if not api_base.startswith("http"):
+        api_base = f"http://{api_base}"
 
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
         temperature=0,  # Minimize variance for reproducible thesis results
-        api_base=ollama_host,
+        api_base=api_base,
     )
 
     agent = Agent(

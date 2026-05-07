@@ -9,6 +9,7 @@ Three tables:
   audit_log_entries — one row per audit event (fine-grained trace)
 """
 
+import json
 from datetime import datetime
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, Integer, String, Text, ForeignKey
@@ -52,6 +53,7 @@ class AgentRun(Base):
     breach_severity_score = Column(Float)
     status = Column(String(20), default="running")
     error_message = Column(Text)
+    pipeline_result_json = Column(Text)  # For multi-agent: stores full analysis output
 
     def to_dict(self) -> dict:
         return {
@@ -77,6 +79,7 @@ class AgentRun(Base):
             "breach_severity_score": self.breach_severity_score,
             "status": self.status,
             "error_message": self.error_message,
+            "pipeline_result": json.loads(self.pipeline_result_json) if self.pipeline_result_json else None,
         }
 
 

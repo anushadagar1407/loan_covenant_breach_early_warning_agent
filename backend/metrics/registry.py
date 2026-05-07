@@ -41,9 +41,9 @@ def compute_registry_summary(runs: List[dict]) -> dict:
     process_error_rate = round(process_errors / total, 4)
     gap_score = round(process_error_rate - outcome_error_rate, 4)
 
-    avg_trajectory = _safe_mean([r.get("trajectory_score", 0) for r in runs])
-    avg_coverage = _safe_mean([r.get("clause_coverage_score", 0) for r in runs])
-    avg_tool_accuracy = _safe_mean([r.get("tool_call_accuracy_score", 0) for r in runs])
+    avg_trajectory = _safe_mean([r.get("trajectory_score") or 0 for r in runs])
+    avg_coverage = _safe_mean([r.get("clause_coverage_score") or 0 for r in runs])
+    avg_tool_accuracy = _safe_mean([r.get("tool_call_accuracy_score") or 0 for r in runs])
 
     # Breakdown by autonomy level
     runs_by_level = {}
@@ -53,10 +53,10 @@ def compute_registry_summary(runs: List[dict]) -> dict:
             runs_by_level[str(level)] = {
                 "count": len(level_runs),
                 "avg_clause_coverage": _safe_mean(
-                    [r.get("clause_coverage_score", 0) for r in level_runs]
+                    [r.get("clause_coverage_score") or 0 for r in level_runs]
                 ),
                 "avg_trajectory": _safe_mean(
-                    [r.get("trajectory_score", 0) for r in level_runs]
+                    [r.get("trajectory_score") or 0 for r in level_runs]
                 ),
                 "process_error_rate": round(
                     sum(1 for r in level_runs if r.get("process_error_detected")) / len(level_runs), 4
@@ -91,10 +91,10 @@ def compute_registry_summary(runs: List[dict]) -> dict:
         "avg_clause_coverage_score": avg_coverage,
         "avg_tool_accuracy_score": avg_tool_accuracy,
         "fully_compliant_runs": sum(
-            1 for r in runs if r.get("clause_coverage_score", 0) >= 1.0
+            1 for r in runs if (r.get("clause_coverage_score") or 0) >= 1.0
         ),
         "compliance_rate": round(
-            sum(1 for r in runs if r.get("clause_coverage_score", 0) >= 1.0) / total, 4
+            sum(1 for r in runs if (r.get("clause_coverage_score") or 0) >= 1.0) / total, 4
         ),
         "runs_by_autonomy_level": runs_by_level,
         "h1_evidence": {

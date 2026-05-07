@@ -249,6 +249,31 @@
         "current_liabilities": 10000000
       },
       "notes": "Ratio = 4.11x (threshold 4.0x). Technically breached. First-time breach with 20-day cure. Flag as imminent requiring cure notice."
+    },
+    {
+      "scenario_id": "SCEN-TESLA-2026Q1",
+      "borrower_id": "TSLA",
+      "pdf_filename": "TESLA_Q1_2026_Update.pdf",
+      "correct_verdict": "no_breach",
+      "verdict_without_adjustments": "breach",
+      "adjustment_changes_verdict": true,
+      "required_tool_sequence": [
+        "extract_financial_metrics",
+        "identify_applicable_covenants",
+        "check_accounting_adjustments",
+        "check_grace_period",
+        "calculate_breach_risk",
+        "generate_report"
+      ],
+      "raw_financials": {
+        "total_debt": 65000000,
+        "reported_ebitda": 15000000,
+        "restructuring_charges": 3000000,
+        "interest_expense": 6000000,
+        "current_assets": 80000000,
+        "current_liabilities": 40000000
+      },
+      "notes": "Synthetic Tesla covenant scenario: raw debt/EBITDA = 4.33x (breach). Add back 3M of permitted adjustment = adjusted ratio 3.61x (no breach)."
     }
   ]
 }

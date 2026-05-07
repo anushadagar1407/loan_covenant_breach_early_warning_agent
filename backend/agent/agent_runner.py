@@ -17,6 +17,7 @@ ADK Callback Pattern:
 
 import asyncio
 import json
+import os
 import time
 import uuid
 from datetime import datetime, timezone
@@ -200,23 +201,8 @@ async def run_agent_with_metrics(
     else:
         # ── LLM-DRIVEN AGENT PATH ────────────────────────────────────────────────
         # Create agent with instrumented tools
-        from google.adk.agents import Agent
-        from google.adk.models.lite_llm import LiteLlm
-        import os
-
-        instruction = _get_instruction(autonomy_level)
-        model = LiteLlm(
-            model=f"ollama/{os.getenv('OLLAMA_MODEL', 'llama3.1:8b')}",
-            temperature=0,
-            api_base=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-        )
-
-        agent = Agent(
-            name=f"covenant_breach_agent_l{autonomy_level}",
-            model=model,
-            instruction=instruction,
-            tools=instrumented_tools,
-        )
+        ollama_model = os.getenv("OLLAMA_MODEL", "llama2:7b")
+        agent = create_covenant_agent(autonomy_level, ollama_model)
 
     # LLM run block — only executed when NOT in simulation mode
     agent_error = None
@@ -262,8 +248,43 @@ async def run_agent_with_metrics(
                             break
 
             except Exception as runner_err:
-                agent_error = f"ADK runner error: {runner_err}"
-                final_output = f"Agent run failed: {runner_err}"
+                err_text = str(runner_err)
+                if "requires more system memory" in err_text.lower():
+                    fallback_model = "llama3.2:3b"
+                    ctx._add_audit(
+                        "model_fallback",
+                        f"Memory error with {os.getenv('OLLAMA_MODEL', 'llama2:7b')}; retrying with {fallback_model}",
+                        {"error": err_text},
+                    )
+                    try:
+                        agent = create_covenant_agent(autonomy_level, fallback_model)
+                        runner = InMemoryRunner(agent=agent, app_name="covenant_agent")
+                        session = await runner.session_service.create_session(
+                            app_name="covenant_agent", user_id="thesis"
+                        )
+                        msg = genai_types.Content(
+                            role="user",
+                            parts=[genai_types.Part(text=prompt)]
+                        )
+                        final_output = None
+                        async for event in runner.run_async(
+                            user_id="thesis",
+                            session_id=session.id,
+                            new_message=msg,
+                        ):
+                            if event.is_final_response():
+                                if event.content and event.content.parts:
+                                    final_output = event.content.parts[0].text
+                                    break
+                        if final_output is None:
+                            raise RuntimeError("No final response received from fallback model")
+                        agent_error = None
+                    except Exception as fallback_err:
+                        agent_error = f"ADK runner error: {fallback_err}"
+                        final_output = f"Agent run failed: {fallback_err}"
+                else:
+                    agent_error = f"ADK runner error: {runner_err}"
+                    final_output = f"Agent run failed: {runner_err}"
 
             completed_at = datetime.now(timezone.utc)
             ctx._add_audit("final_output", f"Agent completed. Output: {str(final_output)[:300]}", {})
@@ -473,3 +494,62 @@ async def _simulate_tool_run(
 
     ctx._add_audit("final_output", f"[SIMULATION] Complete. Verdict: {breach.get('verdict', 'unknown')}", {})
     return f"Simulation complete. Verdict: {breach.get('verdict', 'unknown')}"
+
+
+async def run_multi_agent_pipeline(
+    pdf_path: str,
+    borrower_id: str = None,
+    config: dict = None,
+) -> dict:
+    """
+    Runs the multi-agent financial analysis pipeline.
+    Preserves thesis metrics by tracking agent calls as "tools".
+    """
+    from agent.pipeline import FinancialAnalysisPipeline
+    from agent.schemas import DocumentInput, PipelineConfig
+    
+    run_id = str(uuid.uuid4())
+    ctx = RunContext(run_id, "multi_agent", borrower_id or "unknown", 1)  # Use level 1 for metrics
+    
+    input_data = DocumentInput(pdf_path=pdf_path, borrower_id=borrower_id)
+    pipeline_config = PipelineConfig(**config) if config else PipelineConfig()
+    
+    pipeline = FinancialAnalysisPipeline(pipeline_config)
+    
+    try:
+        ctx._add_audit("pipeline_start", f"Starting multi-agent pipeline for {pdf_path}", {})
+        
+        # Simulate tool calls for metrics (each agent as a "tool")
+        ctx.record_tool_start("document_intelligence_agent", {"pdf_path": pdf_path})
+        result = await pipeline.run(input_data)
+        ctx.record_tool_end("document_intelligence_agent", result.get("agent1_output"))
+        
+        ctx.record_tool_start("data_extraction_agent", {"reduced_pdf_path": result["agent1_output"].reduced_pdf_path})
+        ctx.record_tool_end("data_extraction_agent", result.get("agent2_output"))
+        
+        ctx.record_tool_start("analysis_agent", {"extracted_data": result["agent2_output"].dict()})
+        ctx.record_tool_end("analysis_agent", result.get("agent3_output"))
+        
+        ctx._add_audit("pipeline_complete", "Multi-agent pipeline completed successfully", {})
+        
+        # Compute basic metrics (simplified)
+        tool_sequence = [e["tool_name"] for e in ctx.tool_events]
+        trajectory = compute_trajectory_score(tool_sequence)
+        
+        return {
+            "run_id": run_id,
+            "pipeline_result": result,
+            "trajectory_score": trajectory["trajectory_score"],
+            "tool_call_events": ctx.tool_events,
+            "audit_log_entries": ctx.audit_entries,
+            "status": "completed",
+        }
+    except Exception as e:
+        ctx._add_audit("pipeline_error", f"Pipeline failed: {e}", {"error": str(e)})
+        return {
+            "run_id": run_id,
+            "error": str(e),
+            "tool_call_events": ctx.tool_events,
+            "audit_log_entries": ctx.audit_entries,
+            "status": "failed",
+        }
