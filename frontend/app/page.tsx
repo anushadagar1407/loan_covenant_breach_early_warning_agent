@@ -1,390 +1,196 @@
-'use client'
+/**
+ * frontend/app/page.tsx
+ * ======================
+ * UPDATED Dashboard with statistical validation
+ */
 
-import { useEffect, useState } from 'react'
-import { api } from '../lib/api'
-import type { RegistrySummary, AgentRun, Scenario } from '../lib/types'
+"use client";
 
-const VERDICT_BADGE: Record<string, string> = {
-  no_breach: 'badge-pass',
-  imminent: 'badge-warn',
-  breach: 'badge-danger',
-  breach_curable: 'badge-warn',
-  unknown: 'badge-grey',
-}
-
-const VERDICT_LABEL: Record<string, string> = {
-  no_breach: 'NO BREACH',
-  imminent: 'IMMINENT',
-  breach: 'BREACH',
-  breach_curable: 'BREACH (CURABLE)',
-  unknown: 'UNKNOWN',
-}
-
-function ScoreBar({ value, color = '#3B82F6' }: { value: number; color?: string }) {
-  const pct = Math.round((value ?? 0) * 100)
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ flex: 1, height: 4, background: '#1F2937', borderRadius: 2 }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.6s ease' }} />
-      </div>
-      <span className="metric-number" style={{ fontSize: 12, color, minWidth: 36, textAlign: 'right' }}>{pct}%</span>
-    </div>
-  )
-}
-
-function MetricCard({ label, value, sub, color = '#F9FAFB', size = 'lg', hypothesis }: {
-  label: string; value: string; sub?: string; color?: string; size?: 'lg' | 'sm'; hypothesis?: string
-}) {
-  return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div className="section-label">{label}</div>
-      <div className="metric-number" style={{ fontSize: size === 'lg' ? 36 : 24, color, lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: '#6B7280' }}>{sub}</div>}
-      {hypothesis && (
-        <div style={{ marginTop: 4, fontFamily: 'var(--mono)', fontSize: 10, color: '#0066CC', letterSpacing: '0.06em' }}>
-          {hypothesis}
-        </div>
-      )}
-    </div>
-  )
-}
+import { useEffect, useState } from "react";
+import { RegistrySummary, BaselineComparison } from "@/lib/types";
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<RegistrySummary | null>(null)
-  const [runs, setRuns] = useState<AgentRun[]>([])
-  const [scenarios, setScenarios] = useState<Scenario[]>([])
-  const [showRunModal, setShowRunModal] = useState(false)
-  const [selectedScenario, setSelectedScenario] = useState('')
-  const [selectedLevel, setSelectedLevel] = useState(1)
-  const [launching, setLaunching] = useState(false)
-  const [launchMsg, setLaunchMsg] = useState('')
-  const [health, setHealth] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [summary, setSummary] = useState<RegistrySummary | null>(null);
+  const [ruleBasedComparison, setRuleBasedComparison] = useState<BaselineComparison | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      api.getRegistrySummary().then(setSummary),
-      api.getRuns().then(r => setRuns(r.runs.slice(0, 5))),
-      api.getScenarios().then(r => setScenarios(r.scenarios)),
-      api.health().then(setHealth),
-    ]).catch((err: unknown) => {
-      console.error('Backend fetch failed', err)
-      setError((err as Error)?.message ?? 'Unable to connect to backend API')
-    })
-  }, [])
+    async function fetchData() {
+      try {
+        const summaryRes = await fetch("http://localhost:8000/registry/summary");
+        const summaryData = await summaryRes.json();
+        setSummary(summaryData);
 
-  const handleLaunch = async () => {
-    if (!selectedScenario) return
-    setLaunching(true)
-    setLaunchMsg('')
-    try {
-      const result = await api.startRun(selectedScenario, selectedLevel)
-      setLaunchMsg(`Run started: ${result.run_id.slice(0, 8)}...`)
-      setTimeout(() => {
-        setShowRunModal(false)
-        setLaunchMsg('')
-        window.location.href = `/runs`
-      }, 1500)
-    } catch {
-      setLaunchMsg('Failed to start run. Is the backend running?')
-    } finally {
-      setLaunching(false)
+        try {
+          const baselineRes = await fetch(
+            "http://localhost:8000/registry/baselines/compare?baseline_type=rule_based"
+          );
+          if (baselineRes.ok) {
+            const baselineData = await baselineRes.json();
+            setRuleBasedComparison(baselineData);
+          }
+        } catch (e) {
+          console.log("Baseline comparison not available yet");
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setLoading(false);
+      }
     }
-  }
 
-  const gapScore = summary?.gap_score ?? 0
-  const outcomeRate = summary?.outcome_error_rate ?? 0
-  const processRate = summary?.process_error_rate ?? 0
+    fetchData();
+  }, []);
+
+  if (loading) return <div className="p-8">Loading...</div>;
+  if (!summary) return <div className="p-8">No data available</div>;
+
+  const h1 = summary.h1_validation;
+  const h2 = summary.h2_validation;
+  const cm = summary.classification_metrics;
 
   return (
-    <div>
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>Dashboard</h1>
-          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
-            Covenant Intelligence Platform · Agentic Evaluation Framework
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+      <div className="container mx-auto p-8">
+        <header className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Deutsche Bank – Covenant Intelligence Platform</h1>
+          <p className="text-gray-300">Agentic Evaluation Framework</p>
+        </header>
+
+        {/* Top Metrics */}
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <MetricCard title="TOTAL RUNS" value={summary.total_runs} subtitle="all time" color="blue" />
+          <MetricCard title="PROCESS ERROR" value={`${(summary.process_error_rate*100).toFixed(0)}%`} 
+            subtitle={`${summary.process_errors} runs`} color="red" />
+          <MetricCard title="GAP SCORE" value={h1.significant_at_0_05 ? `+${(h1.gap_score_mean*100).toFixed(1)}%` : "N/S"}
+            subtitle={`p=${h1.p_value.toFixed(4)}`} color={h1.significant_at_0_05 ? "green" : "yellow"} />
+          <MetricCard title="COVERAGE" value={`${(summary.avg_clause_coverage_score*100).toFixed(0)}%`}
+            subtitle={`${summary.fully_compliant_runs} compliant`} color="blue" />
+        </div>
+
+        {/* H1 Panel */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4">H1: GAP SCORE VALIDATION</h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2 text-sm">
+              <StatRow label="Gap Score" value={`${(h1.gap_score_mean*100).toFixed(2)}%`} />
+              <StatRow label="95% CI" value={`[${(h1.confidence_interval_95[0]*100).toFixed(1)}%, ${(h1.confidence_interval_95[1]*100).toFixed(1)}%]`} />
+              <StatRow label="P-Value" value={h1.p_value.toFixed(6)} highlight={h1.p_value<0.05} />
+              <StatRow label="Cohen's d" value={`${h1.cohens_d.toFixed(3)} (${h1.effect_size_interpretation})`} />
+            </div>
+            <div className="bg-gray-900 p-4 rounded">
+              <p className="font-bold text-lg mb-2">{h1.conclusion}</p>
+              <p className="text-sm">{h1.significant_at_0_05 ? "✓ H1 SUPPORTED" : "✗ H1 NOT SUPPORTED"}</p>
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {health && (
-            <div style={{ display: 'flex', gap: 8, fontSize: 11, fontFamily: 'var(--mono)' }}>
-              <span style={{ color: health.ollama_connected ? '#10B981' : '#EF4444' }}>
-                ● OLLAMA
-              </span>
-              <span style={{ color: health.db_connected ? '#10B981' : '#EF4444' }}>
-                ● DB
-              </span>
+
+        {/* H2 Panel */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4">H2: AUTONOMY VS ERRORS</h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              {h2.level_1_error_rate && <LevelBar level="L1" errorRate={h2.level_1_error_rate} />}
+              {h2.level_2_error_rate && <LevelBar level="L2" errorRate={h2.level_2_error_rate} />}
+              {h2.level_3_error_rate && <LevelBar level="L3" errorRate={h2.level_3_error_rate} />}
             </div>
-          )}
-          <button onClick={() => setShowRunModal(true)} style={{
-            background: '#003882', color: 'white', border: 'none',
-            padding: '9px 18px', borderRadius: 4, cursor: 'pointer',
-            fontFamily: 'var(--mono)', fontSize: 12, letterSpacing: '0.06em',
-            fontWeight: 500,
-          }}>
-            ▷ RUN AGENT
-          </button>
+            <div>
+              <div className="space-y-2 text-sm mb-4">
+                <StatRow label="Chi-Square p" value={h2.chi_square_p_value.toFixed(6)} highlight={h2.chi_square_p_value<0.05} />
+                <StatRow label="Correlation" value={`${h2.spearman_correlation.toFixed(3)} (${h2.trend_direction})`} />
+              </div>
+              <div className="bg-gray-900 p-4 rounded">
+                <p className="font-bold">{h2.conclusion}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Classification Metrics */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4">BREACH DETECTION METRICS</h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-green-900 p-4 rounded text-center">
+                <div className="text-3xl font-bold">{cm.true_positives}</div>
+                <div className="text-xs">TP</div>
+              </div>
+              <div className="bg-red-900 p-4 rounded text-center">
+                <div className="text-3xl font-bold">{cm.false_positives}</div>
+                <div className="text-xs">FP</div>
+              </div>
+              <div className="bg-red-900 p-4 rounded text-center">
+                <div className="text-3xl font-bold">{cm.false_negatives}</div>
+                <div className="text-xs">FN</div>
+              </div>
+              <div className="bg-green-900 p-4 rounded text-center">
+                <div className="text-3xl font-bold">{cm.true_negatives}</div>
+                <div className="text-xs">TN</div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <MetricBar label="Precision" value={cm.precision} />
+              <MetricBar label="Recall" value={cm.recall} />
+              <MetricBar label="F1 Score" value={cm.f1_score} />
+              <MetricBar label="Accuracy" value={cm.accuracy} />
+            </div>
+          </div>
         </div>
       </div>
-
-      {error && (
-        <div className="card" style={{ margin: '16px 0', padding: 14, border: '1px solid #FCA5A5', background: 'rgba(254,226,226,0.9)', color: '#B91C1C' }}>
-          <strong>Backend connection failed:</strong> {error}.<br />
-          Make sure the backend is running on port 8000 and that port 8000 is accessible from your browser.
-        </div>
-      )}
-
-      <div className="page-content">
-
-        {/* Top metric cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-          <MetricCard
-            label="Total Runs"
-            value={String(summary?.total_runs ?? 0)}
-            sub="all time"
-            color="#F9FAFB"
-          />
-          <MetricCard
-            label="Process Error Rate"
-            value={`${Math.round((processRate) * 100)}%`}
-            sub={`${summary?.process_errors ?? 0} runs with skipped steps`}
-            color={processRate > outcomeRate ? '#EF4444' : '#10B981'}
-            hypothesis="→ H1 / H2"
-          />
-          <MetricCard
-            label="Gap Score"
-            value={`+${Math.round(gapScore * 100)}%`}
-            sub="Process rate − Outcome rate"
-            color={gapScore > 0 ? '#F59E0B' : '#10B981'}
-            hypothesis="→ H1 KEY METRIC"
-          />
-          <MetricCard
-            label="Avg Clause Coverage"
-            value={`${Math.round((summary?.avg_clause_coverage_score ?? 0) * 100)}%`}
-            sub={`${summary?.fully_compliant_runs ?? 0} fully compliant runs`}
-            color="#3B82F6"
-            hypothesis="→ H4"
-          />
-        </div>
-
-        {/* H1 Visualization: Process vs Outcome error rates */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
-          <div className="card">
-            <div className="section-label" style={{ marginBottom: 16 }}>H1 Evidence — Process vs Outcome Error Rate</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                  <span style={{ color: '#9CA3AF' }}>Outcome Error Rate <span style={{ color: '#6B7280', fontSize: 10 }}>(what banks see)</span></span>
-                  <span className="metric-number" style={{ color: '#10B981' }}>{Math.round(outcomeRate * 100)}%</span>
-                </div>
-                <ScoreBar value={outcomeRate} color="#10B981" />
-              </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                  <span style={{ color: '#9CA3AF' }}>Process Error Rate <span style={{ color: '#6B7280', fontSize: 10 }}>(what's actually happening)</span></span>
-                  <span className="metric-number" style={{ color: '#EF4444' }}>{Math.round(processRate * 100)}%</span>
-                </div>
-                <ScoreBar value={processRate} color="#EF4444" />
-              </div>
-              <div style={{
-                background: 'rgba(245,158,11,0.08)',
-                border: '1px solid rgba(245,158,11,0.25)',
-                borderRadius: 4,
-                padding: '10px 14px',
-                fontSize: 12,
-                color: '#F59E0B',
-                fontFamily: 'var(--mono)',
-              }}>
-                GAP: +{Math.round(gapScore * 100)}% — H1 supported when gap &gt; 0
-              </div>
-            </div>
-          </div>
-
-          {/* H2: Autonomy level breakdown */}
-          <div className="card">
-            <div className="section-label" style={{ marginBottom: 16 }}>H2 Evidence — Process Errors by Autonomy Level</div>
-            {[1, 2, 3].map(level => {
-              const d = summary?.runs_by_autonomy_level?.[String(level)]
-              if (!d?.count) return (
-                <div key={level} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, opacity: 0.4 }}>
-                  <div className="metric-number" style={{ fontSize: 11, color: '#4B5563', minWidth: 60 }}>L{level}</div>
-                  <div style={{ fontSize: 12, color: '#4B5563' }}>No runs yet</div>
-                </div>
-              )
-              const labels = { 1: 'Constrained', 2: 'Moderate', 3: 'High Autonomy' }
-              return (
-                <div key={level} style={{ marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                    <span style={{ color: '#9CA3AF' }}>
-                      <span className="metric-number" style={{ fontSize: 10, color: '#3B82F6' }}>L{level} </span>
-                      {labels[level as 1|2|3]}
-                      <span style={{ color: '#4B5563', marginLeft: 6 }}>({d.count} runs)</span>
-                    </span>
-                    <span className="metric-number" style={{ color: d.process_error_rate > 0.1 ? '#EF4444' : '#10B981', fontSize: 12 }}>
-                      {Math.round((d.avg_clause_coverage ?? 0) * 100)}% cov.
-                    </span>
-                  </div>
-                  <ScoreBar value={d.avg_clause_coverage ?? 0} color={level === 1 ? '#10B981' : level === 2 ? '#F59E0B' : '#EF4444'} />
-                </div>
-              )
-            })}
-            <div style={{ fontSize: 11, color: '#4B5563', marginTop: 8 }}>
-              H2 supported when coverage decreases L1 → L2 → L3
-            </div>
-          </div>
-        </div>
-
-        {/* Recent runs */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div className="section-label" style={{ margin: 0 }}>Recent Runs</div>
-            <a href="/runs" style={{ fontSize: 12, color: '#3B82F6', textDecoration: 'none' }}>View all →</a>
-          </div>
-          {runs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px', color: '#4B5563', fontSize: 13 }}>
-              No runs yet. Click "RUN AGENT" to start your first agent run.
-            </div>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Run ID</th>
-                  <th>Scenario</th>
-                  <th>Borrower</th>
-                  <th>Level</th>
-                  <th>Verdict</th>
-                  <th>Outcome</th>
-                  <th>Clause Cov.</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map(run => (
-                  <tr key={run.run_id}>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#6B7280' }}>
-                      {run.run_id.slice(0, 8)}
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{run.scenario_id}</td>
-                    <td style={{ fontSize: 12 }}>{run.borrower_name}</td>
-                    <td>
-                      <span className={`badge ${run.autonomy_level === 1 ? 'badge-pass' : run.autonomy_level === 2 ? 'badge-warn' : 'badge-danger'}`}>
-                        L{run.autonomy_level}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`badge ${VERDICT_BADGE[run.final_verdict] ?? 'badge-grey'}`}>
-                        {VERDICT_LABEL[run.final_verdict] ?? run.final_verdict}
-                      </span>
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>
-                      {run.outcome_correct === null ? '—' : run.outcome_correct ? (
-                        <span style={{ color: '#10B981' }}>✓</span>
-                      ) : (
-                        <span style={{ color: '#EF4444' }}>✗</span>
-                      )}
-                    </td>
-                    <td>
-                      <ScoreBar
-                        value={run.clause_coverage_score ?? 0}
-                        color={(run.clause_coverage_score ?? 0) >= 1 ? '#10B981' : '#EF4444'}
-                      />
-                    </td>
-                    <td>
-                      <a href={`/runs/${run.run_id}`} style={{ fontSize: 11, color: '#3B82F6', textDecoration: 'none', fontFamily: 'var(--mono)' }}>
-                        VIEW →
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      {/* Run Agent Modal */}
-      {showRunModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-        }} onClick={e => e.target === e.currentTarget && setShowRunModal(false)}>
-          <div style={{
-            background: '#111827', border: '1px solid #1F2937',
-            borderRadius: 8, padding: 28, width: 460,
-          }}>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#3B82F6', marginBottom: 16, letterSpacing: '0.08em' }}>
-              ▷ LAUNCH AGENT RUN
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: '#9CA3AF', display: 'block', marginBottom: 6 }}>Scenario</label>
-              <select
-                value={selectedScenario}
-                onChange={e => setSelectedScenario(e.target.value)}
-                style={{
-                  width: '100%', background: '#0A0E1A', border: '1px solid #1F2937',
-                  color: '#F9FAFB', padding: '9px 12px', borderRadius: 4,
-                  fontFamily: 'var(--mono)', fontSize: 12,
-                }}
-              >
-                <option value="">Select scenario...</option>
-                {scenarios.map(s => (
-                  <option key={s.scenario_id} value={s.scenario_id}>
-                    {s.scenario_id} — {s.borrower_id} ({s.correct_verdict})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, color: '#9CA3AF', display: 'block', marginBottom: 6 }}>Autonomy Level</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[1, 2, 3].map(lvl => (
-                  <button key={lvl} onClick={() => setSelectedLevel(lvl)} style={{
-                    flex: 1, padding: '10px 0',
-                    background: selectedLevel === lvl ? '#003882' : '#0A0E1A',
-                    border: `1px solid ${selectedLevel === lvl ? '#0066CC' : '#1F2937'}`,
-                    color: selectedLevel === lvl ? 'white' : '#9CA3AF',
-                    borderRadius: 4, cursor: 'pointer',
-                    fontFamily: 'var(--mono)', fontSize: 11,
-                  }}>
-                    L{lvl}<br />
-                    <span style={{ fontSize: 9, opacity: 0.7 }}>
-                      {['CONSTRAINED', 'MODERATE', 'AUTONOMOUS'][lvl - 1]}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {launchMsg && (
-              <div style={{
-                padding: '8px 12px', borderRadius: 4, marginBottom: 12,
-                background: launchMsg.includes('Failed') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
-                color: launchMsg.includes('Failed') ? '#EF4444' : '#10B981',
-                fontSize: 12, fontFamily: 'var(--mono)',
-              }}>
-                {launchMsg}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowRunModal(false)} style={{
-                flex: 1, padding: '10px', background: 'transparent',
-                border: '1px solid #1F2937', color: '#9CA3AF', borderRadius: 4,
-                cursor: 'pointer', fontSize: 13,
-              }}>
-                Cancel
-              </button>
-              <button onClick={handleLaunch} disabled={!selectedScenario || launching} style={{
-                flex: 2, padding: '10px', background: '#003882',
-                border: 'none', color: 'white', borderRadius: 4,
-                cursor: selectedScenario && !launching ? 'pointer' : 'not-allowed',
-                fontFamily: 'var(--mono)', fontSize: 12, letterSpacing: '0.06em',
-                opacity: !selectedScenario || launching ? 0.6 : 1,
-              }}>
-                {launching ? 'LAUNCHING...' : '▷ LAUNCH'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  )
+  );
+}
+
+function MetricCard({ title, value, subtitle, color }: any) {
+  const colors: any = {
+    blue: "from-blue-600 to-blue-800",
+    red: "from-red-600 to-red-800",
+    green: "from-green-600 to-green-800",
+    yellow: "from-yellow-600 to-yellow-800"
+  };
+  return (
+    <div className={`bg-gradient-to-br ${colors[color]} rounded-lg p-6`}>
+      <div className="text-xs uppercase mb-2">{title}</div>
+      <div className="text-4xl font-bold mb-1">{value}</div>
+      <div className="text-xs opacity-70">{subtitle}</div>
+    </div>
+  );
+}
+
+function StatRow({ label, value, highlight }: any) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-400">{label}:</span>
+      <span className={highlight ? "text-green-400 font-bold" : ""}>{value}</span>
+    </div>
+  );
+}
+
+function LevelBar({ level, errorRate }: any) {
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span>{level}</span>
+        <span>{(errorRate*100).toFixed(1)}%</span>
+      </div>
+      <div className="w-full bg-gray-700 rounded-full h-3">
+        <div className="bg-red-500 h-3 rounded-full" style={{width: `${errorRate*100}%`}} />
+      </div>
+    </div>
+  );
+}
+
+function MetricBar({ label, value }: any) {
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span>{label}</span>
+        <span className="font-bold">{(value*100).toFixed(1)}%</span>
+      </div>
+      <div className="w-full bg-gray-700 rounded-full h-2">
+        <div className="bg-blue-500 h-2 rounded-full" style={{width: `${value*100}%`}} />
+      </div>
+    </div>
+  );
 }
