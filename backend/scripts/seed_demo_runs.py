@@ -115,7 +115,7 @@ async def main():
     print("Seeding demo runs (10 scenarios × 3 autonomy levels = 30 runs)\n")
 
     for level in [1, 2, 3]:
-        for i, scen in enumerate(gt["scenarios"]):
+        for i, scen in enumerate(gt["scenarios"][:10]):  # keep 10 scenarios if you want 30 runs
             sid = scen["scenario_id"]
             bid = scen["borrower_id"]
             profile = borrower_map.get(bid, {})
@@ -123,7 +123,13 @@ async def main():
             has_gp = profile.get("has_grace_period", False)
 
             skip = SKIP_PATTERNS[level](has_adj, has_gp, i)
-            pdf = f"data/synthetic_pdfs/{scen['pdf_filename']}"
+
+            # Build PDF filename to match generate_pdfs.py
+            borrower_id = scen["borrower_id"]
+            year = scen["year"]          # e.g. 2026
+            quarter = scen["quarter"]    # e.g. "Q1"
+            filename = f"{borrower_id}_{year}_{quarter}_Financial_Report.pdf"
+            pdf = f"data/synthetic_pdfs/{filename}"
 
             try:
                 result = await run_agent_with_metrics(

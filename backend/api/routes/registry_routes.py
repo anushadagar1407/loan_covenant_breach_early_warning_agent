@@ -1,8 +1,13 @@
 """UPDATED API routes with statistical endpoints"""
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.session import get_db
-from metrics.registry import get_registry_summary
+from database.db import get_db 
+from metrics.registry import (
+    get_registry_summary,
+    get_h1_evidence,
+    get_h2_evidence,
+    get_baseline_comparison,
+)
 
 router = APIRouter(prefix="/registry", tags=["Registry"])
 

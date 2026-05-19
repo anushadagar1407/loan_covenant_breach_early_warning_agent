@@ -47,10 +47,31 @@ export interface RegistrySummary {
   gap_score: number;
   process_error_rate: number;
   outcome_error_rate: number;
+  process_errors: number; 
   h1_validation: H1Validation;
   h2_validation: H2Validation;
   classification_metrics: ClassificationMetrics;
   avg_clause_coverage_score: number;
   fully_compliant_runs: number;
   level_stats: any;
+}
+
+export interface Scenario {
+  id: string;
+  name: string;
+  description: string;
+  autonomy_levels: number[];          // adjust if your backend differs
+}
+
+export interface AgentRun {
+  id: string;
+  scenario_id: string;
+  autonomy_level: number;
+  status: string;
+  created_at: string;                 // ISO timestamp
+}
+
+export interface RunDetail extends AgentRun {
+  steps: any[];                       // or a more detailed type if you prefer
+  metrics: any;
 }

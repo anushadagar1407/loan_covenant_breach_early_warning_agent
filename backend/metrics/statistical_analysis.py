@@ -8,7 +8,6 @@ import numpy as np
 from scipy import stats
 from typing import List, Dict, Tuple
 
-
 def bootstrap_confidence_interval(data: List[float], statistic_fn=np.mean, n_bootstrap: int = 10000, confidence_level: float = 0.95) -> Tuple[float, float, float]:
     """Compute bootstrap confidence interval."""
     bootstrap_stats = []
@@ -51,7 +50,6 @@ def validate_h1_gap_score(runs: List) -> Dict:
         "conclusion": "H1 SUPPORTED" if p_value < 0.05 and mean_gap > 0 else "H1 NOT SUPPORTED"
     }
 
-
 def validate_h2_autonomy_errors(runs: List) -> Dict:
     """H2: Higher autonomy increases process errors."""
     levels = [1, 2, 3]
@@ -62,10 +60,13 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
         level_runs = [r for r in runs if r.autonomy_level == level]
         if len(level_runs) == 0:
             continue
+
         errors = [1 if r.process_error_detected else 0 for r in level_runs]
-        coverage = [r.clause_coverage_score for r in level_runs]
-        error_rates.append(np.mean(errors))
-        coverage_scores.append(np.mean(coverage))
+        # Normalize None -> 0.0 so numpy.mean does not break
+        coverage = [(r.clause_coverage_score or 0.0) for r in level_runs]
+
+        error_rates.append(float(np.mean(errors)))
+        coverage_scores.append(float(np.mean(coverage)))
 
     contingency = []
     for level in levels:
@@ -113,10 +114,9 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
         "kruskal_wallis_p": float(kruskal_p),
         "trend_direction": "increasing" if correlation > 0 else "decreasing",
         "significant_at_0_05": p_value < 0.05,
-        "conclusion": "H2 SUPPORTED" if p_value < 0.05 and correlation > 0 else "H2 WEAK/NOT SUPPORTED"
+        "conclusion": "H2 SUPPORTED" if p_value < 0.05 and correlation > 0 else "H2 WEAK/NOT SUPPORTED",
     }
-
-
+    
 def compute_classification_metrics(runs: List) -> Dict:
     """Compute Precision, Recall, F1."""
     y_true = []

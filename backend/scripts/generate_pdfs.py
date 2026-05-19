@@ -22,8 +22,9 @@ try:
         SimpleDocTemplate, Table, TableStyle, Paragraph,
         Spacer, PageBreak,
     )
-    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -56,11 +57,27 @@ def generate_pdf(scenario: dict, borrower: dict):
         print("Skipping PDF generation — reportlab not available")
         return
 
-    filename = scenario["pdf_filename"]
+    # ✅ use scenario, NOT scen
+    borrower_id = scenario["borrower_id"]
+    year = scenario["year"]          # e.g. 2026
+    quarter = scenario["quarter"]    # e.g. "Q1"
+
+    filename = f"{borrower_id}_{year}_{quarter}_Financial_Report.pdf"
     output_path = OUTPUT_DIR / filename
-    raw = scenario["raw_financials"]
-    period_code = filename.split("_", 1)[1].replace(".pdf", "")
-    period_label = PERIOD_MAP.get(period_code, period_code)
+
+    raw = {
+        "total_debt": scenario["total_debt"],
+        "reported_ebitda": scenario["reported_ebitda"],
+        "interest_expense": scenario["interest_expense"],
+        "current_assets": scenario["current_assets"],
+        "current_liabilities": scenario["current_liabilities"],
+        "restructuring_charges": scenario.get("restructuring_charges", 0),
+        "decommissioning_costs": scenario.get("decommissioning_costs", 0),
+        "exceptional_legal_costs": scenario.get("exceptional_legal_costs", 0),
+    }
+
+    period_code = f"{quarter}_{year}"  # e.g. "Q1_2026"
+    period_label = PERIOD_MAP.get(period_code, f"{quarter} {year}")
 
     doc = SimpleDocTemplate(
         str(output_path),
@@ -109,7 +126,7 @@ def generate_pdf(scenario: dict, borrower: dict):
 
     # ── Executive Summary ─────────────────────────────────────────────────
     story.append(Paragraph("1. Executive Summary", h2_style))
-    verdict = scenario["correct_verdict"]
+    verdict = scenario.get("correct_verdict", scenario["expected_verdict"])
     if verdict == "no_breach":
         exec_text = (
             f"{borrower['name']} has delivered a stable financial performance for {period_label}. "

@@ -14,12 +14,10 @@ from database.db import init_db
 from api.routes.agent_routes import router as agent_router
 from api.routes.registry_routes import router as registry_router
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     yield
-
 
 app = FastAPI(
     title="Covenant Breach Agent API",
@@ -38,7 +36,6 @@ app.add_middleware(
 
 app.include_router(agent_router, prefix="/api")
 app.include_router(registry_router, prefix="/api")
-
 
 @app.get("/health")
 async def health():
