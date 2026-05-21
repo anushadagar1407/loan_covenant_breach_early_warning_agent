@@ -43,7 +43,7 @@ def create_document_intelligence_agent() -> Agent:
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
         temperature=0.1,  # Low for precision
-        api_base=api_base,
+        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     return Agent(
@@ -83,7 +83,7 @@ def create_data_extraction_agent() -> Agent:
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
         temperature=0.1,  # Low for precision
-        api_base=api_base,
+        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     return Agent(
@@ -122,7 +122,7 @@ def create_analysis_agent() -> Agent:
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
         temperature=0.1,  # Low for precision
-        api_base=api_base,
+        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     return Agent(

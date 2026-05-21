@@ -133,9 +133,9 @@ def create_covenant_agent(autonomy_level: int = 1, ollama_model: str | None = No
         api_base = f"http://{api_base}"
 
     model = LiteLlm(
-        model=f"ollama/{ollama_model}",
+        model=f"{os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant")}",
         temperature=0,  # Minimize variance for reproducible thesis results
-        api_base=api_base,
+        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     agent = Agent(

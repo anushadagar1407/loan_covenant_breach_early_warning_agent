@@ -24,6 +24,25 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from agent.covenant_agent import create_covenant_agent
+# DEBUG: instrument litellm to log token usage
+import litellm
+litellm.set_verbose = False  # set True only if you want full request/response dumps (very loud)
+# Hook to log token usage per call
+_orig_success_callback = getattr(litellm, "success_callback", [])
+def _token_logger(kwargs, completion_response, start_time, end_time):
+    try:
+        usage = getattr(completion_response, "usage", None) or completion_response.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens", 0) if hasattr(usage, "get") else getattr(usage, "prompt_tokens", 0)
+        completion_tokens = usage.get("completion_tokens", 0) if hasattr(usage, "get") else getattr(usage, "completion_tokens", 0)
+        total = prompt_tokens + completion_tokens
+        model = kwargs.get("model", "?")
+        msgs = kwargs.get("messages", [])
+        last_user_msg = next((m.get("content", "")[:200] for m in reversed(msgs) if m.get("role") == "user"), "")
+        print(f"[LLM_CALL] model={model} prompt_tokens={prompt_tokens} completion_tokens={completion_tokens} total={total} | last_user_msg[0:200]={last_user_msg!r}", flush=True)
+    except Exception as e:
+        print(f"[LLM_CALL] logging error: {e}", flush=True)
+litellm.success_callback = list(_orig_success_callback) + [_token_logger]
+
 from metrics.trajectory_tracker import compute_trajectory_score
 from metrics.tool_accuracy_scorer import score_tool_call_accuracy
 from metrics.clause_coverage_scorer import compute_clause_coverage
@@ -201,7 +220,7 @@ async def run_agent_with_metrics(
     else:
         # ── LLM-DRIVEN AGENT PATH ────────────────────────────────────────────────
         # Create agent with instrumented tools
-        ollama_model = os.getenv("OLLAMA_MODEL", "llama2:7b")
+        ollama_model = None  # ignored; covenant_agent.py reads LITELLM_MODEL directly
         agent = create_covenant_agent(autonomy_level, ollama_model)
 
     # LLM run block — only executed when NOT in simulation mode
@@ -248,6 +267,13 @@ async def run_agent_with_metrics(
                             break
 
             except Exception as runner_err:
+                import traceback
+                tb_str = traceback.format_exc()
+                print("=" * 70, flush=True)
+                print("=== AGENT RUNNER CRASH — FULL TRACEBACK ===", flush=True)
+                print(tb_str, flush=True)
+                print("=" * 70, flush=True)
+                ctx._add_audit("debug_traceback", "Full runner exception", {"traceback": tb_str[-2000:]})
                 err_text = str(runner_err)
                 if "requires more system memory" in err_text.lower():
                     fallback_model = "llama3.2:3b"

@@ -211,6 +211,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        <RunAgentButton />
       </div>
     </div>
   );
@@ -272,6 +273,293 @@ function MetricBar({ label, value }: any) {
           className="bg-blue-500 h-2 rounded-full"
           style={{ width: `${value * 100}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// RUN AGENT — Floating button + modal that POSTs to /api/runs and polls /api/runs/{id}
+// ============================================================================
+
+function RunAgentButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-8 right-8 z-40 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-full shadow-2xl transition-all hover:scale-105 flex items-center gap-2"
+        title="Trigger a new live agent run"
+      >
+        <span className="text-xl">▶</span>
+        <span>Run Agent</span>
+      </button>
+      {open && <RunAgentModal onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+type RunPhase = "form" | "running" | "done" | "error";
+
+function RunAgentModal({ onClose }: { onClose: () => void }) {
+  const BASE: string = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+  const [scenarios, setScenarios] = useState<Array<any>>([]);
+  const [scenarioId, setScenarioId] = useState<string>("");
+  const [autonomyLevel, setAutonomyLevel] = useState<number>(3);
+  const [phase, setPhase] = useState<RunPhase>("form");
+  const [runId, setRunId] = useState<string | null>(null);
+  const [runDetail, setRunDetail] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load scenarios when modal opens
+  useEffect(() => {
+    fetch(`${BASE}/api/scenarios`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(data => {
+        const list = data.scenarios || [];
+        setScenarios(list);
+        if (list.length > 0) setScenarioId(list[0].scenario_id);
+      })
+      .catch(e => setError(`Could not load scenarios: ${e.message}`));
+  }, []);
+
+  // Poll /api/runs/{run_id} until the row appears in the DB (= agent completed)
+  useEffect(() => {
+    if (phase !== "running" || !runId) return;
+    let cancelled = false;
+    let pollCount = 0;
+    const MAX_POLLS = 150; // 5 min at 2s interval
+
+    const poll = async () => {
+      if (cancelled) return;
+      pollCount++;
+      if (pollCount > MAX_POLLS) {
+        setError("Run timed out after 5 minutes. Check the backend terminal for errors.");
+        setPhase("error");
+        return;
+      }
+      try {
+        const r = await fetch(`${BASE}/api/runs/${runId}`, { cache: "no-store" });
+        if (r.ok) {
+          const data = await r.json();
+          setRunDetail(data);
+          setPhase("done");
+          return;
+        }
+        // 404 means agent is still running — keep polling
+      } catch {
+        // network blip — keep polling
+      }
+      setTimeout(poll, 2000);
+    };
+
+    const t = setTimeout(poll, 1500); // small initial delay
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [phase, runId]);
+
+  const handleSubmit = async () => {
+    setError(null);
+    try {
+      const r = await fetch(`${BASE}/api/runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario_id: scenarioId, autonomy_level: autonomyLevel }),
+      });
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(`Server returned ${r.status}: ${text}`);
+      }
+      const data = await r.json();
+      setRunId(data.run_id);
+      setPhase("running");
+    } catch (e: any) {
+      setError(e.message || "Failed to start run");
+      setPhase("error");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-lg w-full"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold">Run Live Agent</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white text-2xl leading-none"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* ---------- Form phase ---------- */}
+        {phase === "form" && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm text-gray-400 mb-2">Scenario</label>
+              <select
+                value={scenarioId}
+                onChange={e => setScenarioId(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+              >
+                {scenarios.length === 0 && <option>Loading scenarios…</option>}
+                {scenarios.map(s => (
+                  <option key={s.scenario_id} value={s.scenario_id}>
+                    {s.scenario_id} — {s.borrower_id} (expects: {s.expected_verdict})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                💡 For the thesis H1 demo, pick SCEN-001 at L3 (autonomous).
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">Autonomy Level</label>
+              <div className="space-y-2">
+                {[
+                  { v: 1, label: "L1 — Constrained", desc: "Follows fixed 6-tool workflow strictly" },
+                  { v: 2, label: "L2 — Moderate", desc: "May skip some optional compliance steps" },
+                  { v: 3, label: "L3 — Autonomous", desc: "Chooses its own tool sequence" },
+                ].map(opt => (
+                  <label
+                    key={opt.v}
+                    className="flex items-start gap-3 cursor-pointer p-2 hover:bg-gray-800 rounded"
+                  >
+                    <input
+                      type="radio"
+                      name="autonomy"
+                      checked={autonomyLevel === opt.v}
+                      onChange={() => setAutonomyLevel(opt.v)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium text-sm">{opt.label}</div>
+                      <div className="text-xs text-gray-500">{opt.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {error && <div className="mb-4 text-sm text-red-400">{error}</div>}
+
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!scenarioId}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded font-semibold text-sm"
+              >
+                Run Agent
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ---------- Running phase ---------- */}
+        {phase === "running" && (
+          <div className="py-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+            <p className="font-bold mb-2">Agent is running…</p>
+            <p className="text-xs text-gray-500 font-mono mb-3">run_id: {runId?.slice(0, 8)}…</p>
+            <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              Ollama is processing the PDF and executing the tool chain. Expect <strong>30–120 seconds</strong> on CPU.
+              Results will appear here when ready.
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-4 text-xs text-gray-500 hover:text-gray-300 underline"
+            >
+              Close modal (run continues in background)
+            </button>
+          </div>
+        )}
+
+        {/* ---------- Done phase ---------- */}
+        {phase === "done" && runDetail && (
+          <div className="py-4">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-2 text-green-400">✓</div>
+              <p className="font-bold">Run complete</p>
+            </div>
+            <div className="bg-gray-800 rounded p-3 space-y-2 text-sm mb-4">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Final verdict:</span>
+                <span className="font-mono">{runDetail.final_verdict ?? "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Expected:</span>
+                <span className="font-mono text-gray-500">{runDetail.correct_verdict ?? "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Outcome correct:</span>
+                <span className={runDetail.outcome_correct ? "text-green-400" : "text-red-400"}>
+                  {runDetail.outcome_correct === null ? "—" : runDetail.outcome_correct ? "✓ YES" : "✗ NO"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Clause coverage:</span>
+                <span className="font-mono">{((runDetail.clause_coverage_score ?? 0) * 100).toFixed(0)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Process error:</span>
+                <span className={runDetail.process_error_detected ? "text-red-400 font-bold" : "text-green-400"}>
+                  {runDetail.process_error_detected ? "⚠ DETECTED" : "CLEAN"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Duration:</span>
+                <span className="font-mono text-gray-500">
+                  {runDetail.duration_seconds ? `${runDetail.duration_seconds.toFixed(1)}s` : "—"}
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
+                Close
+              </button>
+              <a
+                href={`/runs/${runId}`}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded font-semibold text-sm"
+              >
+                View full run →
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* ---------- Error phase ---------- */}
+        {phase === "error" && (
+          <div className="py-6 text-center">
+            <div className="text-5xl mb-2 text-red-400">⚠</div>
+            <p className="font-bold mb-2">Something went wrong</p>
+            <p className="text-sm text-red-400 mb-4 max-w-md mx-auto break-words">{error}</p>
+            <div className="flex justify-center gap-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
+                Close
+              </button>
+              <button
+                onClick={() => { setPhase("form"); setError(null); }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-semibold"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
