@@ -1,83 +1,77 @@
-export interface AgentRun {
-  run_id: string
-  scenario_id: string
-  borrower_id: string
-  borrower_name: string
-  autonomy_level: 1 | 2 | 3
-  pdf_path: string
-  started_at: string
-  completed_at: string | null
-  duration_seconds: number | null
-  final_verdict: 'no_breach' | 'imminent' | 'breach' | 'breach_curable' | 'unknown'
-  correct_verdict: string | null
-  outcome_correct: boolean | null
-  trajectory_score: number | null
-  tool_call_accuracy_score: number | null
-  clause_coverage_score: number | null
-  process_error_detected: boolean
-  adjustment_clause_checked: boolean
-  grace_period_clause_checked: boolean
-  adjustment_changes_verdict: boolean
-  status: 'running' | 'completed' | 'failed'
-  error_message: string | null
+/* UPDATED TypeScript types */
+
+export interface H1Validation {
+  hypothesis: string;
+  gap_score_mean: number;
+  gap_score_std: number;
+  confidence_interval_95: [number, number];
+  t_statistic: number;
+  p_value: number;
+  significant_at_0_05: boolean;
+  significant_at_0_01: boolean;
+  cohens_d: number;
+  effect_size_interpretation: string;
+  runs_with_gap: number;
+  total_runs: number;
+  percentage_with_gap: number;
+  conclusion: string;
 }
 
-export interface ToolCallEvent {
-  tool_name: string
-  call_order: number
-  called_at: string | null
-  completed_at: string | null
-  latency_ms: number | null
-  accuracy_score: number | null
-  error: string | null
+export interface H2Validation {
+  hypothesis: string;
+  level_1_error_rate?: number;
+  level_2_error_rate?: number;
+  level_3_error_rate?: number;
+  chi_square_statistic: number;
+  chi_square_p_value: number;
+  spearman_correlation: number;
+  correlation_p_value: number;
+  trend_direction: string;
+  significant_at_0_05: boolean;
+  conclusion: string;
 }
 
-export interface AuditLogEntry {
-  timestamp: string | null
-  event_type: string
-  message: string
-}
-
-export interface RunDetail extends AgentRun {
-  tool_call_events: ToolCallEvent[]
-  audit_log_entries: AuditLogEntry[]
+export interface ClassificationMetrics {
+  true_positives: number;
+  false_positives: number;
+  true_negatives: number;
+  false_negatives: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  accuracy: number;
 }
 
 export interface RegistrySummary {
-  total_runs: number
-  outcome_errors: number
-  process_errors: number
-  outcome_error_rate: number
-  process_error_rate: number
-  gap_score: number
-  avg_trajectory_score: number
-  avg_clause_coverage_score: number
-  avg_tool_accuracy_score: number
-  fully_compliant_runs: number
-  compliance_rate: number
-  runs_by_autonomy_level: {
-    [key: string]: {
-      count: number
-      process_error_rate: number
-      outcome_error_rate: number
-      avg_clause_coverage: number
-      avg_trajectory: number
-    }
-  }
-  h1_evidence: {
-    count: number
-    percentage: number
-    run_ids: string[]
-    description: string
-  }
+  total_runs: number;
+  gap_score: number;
+  process_error_rate: number;
+  outcome_error_rate: number;
+  process_errors: number; 
+  h1_validation: H1Validation;
+  h2_validation: H2Validation;
+  classification_metrics: ClassificationMetrics;
+  avg_clause_coverage_score: number;
+  fully_compliant_runs: number;
+  level_stats: any;
 }
 
 export interface Scenario {
-  scenario_id: string
-  borrower_id: string
-  pdf_filename: string
-  correct_verdict: string
-  adjustment_changes_verdict: boolean
-  required_tool_sequence: string[]
-  notes: string
+  id: string;
+  name: string;
+  description: string;
+  autonomy_levels: number[];          // adjust if your backend differs
+}
+
+export interface AgentRun {
+  id: string;
+  scenario_id: string;
+  autonomy_level: number;
+  status: string;
+  created_at: string;                 // ISO timestamp
+}
+
+export interface RunDetail extends AgentRun {
+  steps: any[];                       // or a more detailed type if you prefer
+  metrics: any;
 }

@@ -71,23 +71,23 @@ def _try_load_from_ground_truth(borrower_id: str, pdf_path: str) -> dict | None:
     with open(gt_path) as f:
         gt = json.load(f)
 
-    # Find matching scenario by pdf_filename or borrower_id
-    pdf_name = Path(pdf_path).name
-    matching = [
-        s for s in gt["scenarios"]
-        if s["borrower_id"] == borrower_id and (
-            s.get("pdf_filename") == pdf_name or pdf_name == ""
-        )
-    ]
-    if not matching:
-        # Fall back to any scenario for this borrower
-        matching = [s for s in gt["scenarios"] if s["borrower_id"] == borrower_id]
-
+    # Find any scenario for this borrower_id (we no longer rely on pdf_filename)
+    matching = [s for s in gt["scenarios"] if s["borrower_id"] == borrower_id]
     if not matching:
         return None
 
     scenario = matching[0]
-    raw = scenario["raw_financials"]
+
+    raw = {
+        "total_debt": scenario["total_debt"],
+        "reported_ebitda": scenario["reported_ebitda"],
+        "interest_expense": scenario["interest_expense"],
+        "current_assets": scenario["current_assets"],
+        "current_liabilities": scenario["current_liabilities"],
+        "restructuring_charges": scenario.get("restructuring_charges", 0),
+        "decommissioning_costs": scenario.get("decommissioning_costs", 0),
+        "exceptional_legal_costs": scenario.get("exceptional_legal_costs", 0),
+    }
 
     adjustment_items = {
         "restructuring_charges": float(raw.get("restructuring_charges", 0)),
@@ -107,7 +107,6 @@ def _try_load_from_ground_truth(borrower_id: str, pdf_path: str) -> dict | None:
         "source": "ground_truth_fallback",
         "scenario_id": scenario["scenario_id"],
     }
-
 
 def _parse_financial_text(text: str) -> dict:
     """Parse financial metrics from extracted PDF text."""

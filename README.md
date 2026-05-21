@@ -46,12 +46,14 @@ The Level-3 agent skipped one step and gave the wrong answer. Without the Agent 
 # In a dedicated terminal — leave it running
 ollama serve
 
-# In another terminal, pull the model (~5GB, one-time download)
-ollama pull llama3.1:8b
+# In another terminal, pull a smaller model for this environment (one-time download)
+ollama pull llama2:7b
 
 # Verify
-ollama run llama3.1:8b "What is EBITDA?"
+ollama run llama2:7b "What is EBITDA?"
 # Type /bye to exit
+
+> Note: The pipeline now includes a deterministic fallback path that uses PDF parsing and ratio heuristics if the Ollama LLM agent fails or cannot allocate enough memory.
 ```
 
 ### Step 2 — Backend Setup
@@ -205,7 +207,7 @@ covenant-breach-agent/
 | Layer | Technology |
 |---|---|
 | Agent Framework | Google ADK 1.31+ |
-| LLM | Ollama (llama3.1:8b) via LiteLLM |
+| LLM | Ollama (llama2:7b default, override via OLLAMA_MODEL) via LiteLLM |
 | Backend API | FastAPI + Uvicorn |
 | Database | SQLite via SQLAlchemy async |
 | PDF Generation | reportlab |

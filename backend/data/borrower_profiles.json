@@ -69,6 +69,20 @@
       "has_grace_period": true,
       "grace_period_days": 20,
       "grace_period_description": "Cure period of 20 business days available for first-time covenant breach only"
+    },
+    {
+      "borrower_id": "TSLA",
+      "name": "Tesla Inc.",
+      "covenants": {
+        "max_debt_to_ebitda": 4.0,
+        "min_interest_coverage": 3.0,
+        "min_liquidity_ratio": 1.1
+      },
+      "has_accounting_adjustments": true,
+      "adjustment_description": "Non-recurring charges such as restructuring and legal costs may be excluded from adjusted EBITDA.",
+      "has_grace_period": true,
+      "grace_period_days": 30,
+      "grace_period_description": "30-day cure period applies for first covenant breach notices."
     }
   ]
 }

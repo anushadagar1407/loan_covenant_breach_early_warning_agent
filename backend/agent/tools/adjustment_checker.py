@@ -68,7 +68,17 @@ def check_accounting_adjustments(borrower_id: str, raw_financials: dict) -> dict
     # Retrieve raw figures
     reported_ebitda = float(raw_financials.get("reported_ebitda", 0))
     total_debt = float(raw_financials.get("total_debt", 0))
-    adj_items = raw_financials.get("adjustment_items", {})
+    # Defensive: LLMs sometimes pass adjustment_items as list-of-dict instead of dict.
+    # Coerce to dict; log the shape mismatch as it's H1-relevant evidence.
+    _raw_adj = raw_financials.get("adjustment_items", {})
+    if isinstance(_raw_adj, list):
+        print(f"[adjustment_checker] WARNING: LLM passed adjustment_items as list (shape: {type(_raw_adj).__name__}, len: {len(_raw_adj)}); coercing to dict", flush=True)
+        adj_items = _raw_adj[0] if _raw_adj and isinstance(_raw_adj[0], dict) else {}
+    elif isinstance(_raw_adj, dict):
+        adj_items = _raw_adj
+    else:
+        print(f"[adjustment_checker] WARNING: LLM passed adjustment_items as unexpected type ({type(_raw_adj).__name__}); using empty dict", flush=True)
+        adj_items = {}
     restructuring = float(adj_items.get("restructuring_charges", 0))
     decommissioning = float(adj_items.get("decommissioning_costs", 0))
     legal_costs = float(adj_items.get("legal_costs", 0))

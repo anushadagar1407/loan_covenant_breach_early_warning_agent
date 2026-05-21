@@ -28,6 +28,12 @@ class RunRequest(BaseModel):
     autonomy_level: int = 1
 
 
+class MultiAgentRequest(BaseModel):
+    pdf_path: str
+    borrower_id: Optional[str] = None
+    config: Optional[dict] = None
+
+
 async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int):
     """Background task: runs agent and persists results."""
     from database.db import AsyncSessionLocal
@@ -183,3 +189,75 @@ async def list_scenarios():
     with open(GROUND_TRUTH_PATH) as f:
         data = json.load(f)
     return {"scenarios": data["scenarios"]}
+
+
+@router.post("/multi-agent")
+async def start_multi_agent_run(request: MultiAgentRequest, background_tasks: BackgroundTasks):
+    """
+    Trigger a multi-agent financial analysis pipeline run.
+    Returns immediately with run_id.
+    """
+    import uuid
+    from agent.agent_runner import run_multi_agent_pipeline
+
+    run_id = str(uuid.uuid4())
+    
+    # Run in background
+    background_tasks.add_task(_execute_multi_run, run_id, request.pdf_path, request.borrower_id, request.config)
+
+    return {"run_id": run_id, "status": "started", "pdf_path": request.pdf_path}
+
+
+async def _execute_multi_run(run_id: str, pdf_path: str, borrower_id: str, config: dict):
+    """Background task: runs multi-agent pipeline and persists results."""
+    from database.db import AsyncSessionLocal
+    from database.models import AgentRun, ToolCallEvent, AuditLogEntry
+    from agent.agent_runner import run_multi_agent_pipeline
+
+    run_result = await run_multi_agent_pipeline(pdf_path=pdf_path, borrower_id=borrower_id, config=config)
+
+    # Persist to database (simplified, reuse AgentRun but mark as multi-agent)
+    async with AsyncSessionLocal() as db:
+        run = AgentRun(
+            run_id=run_id,
+            scenario_id="multi_agent",
+            borrower_id=borrower_id or "unknown",
+            borrower_name=borrower_id or "Unknown",
+            autonomy_level=1,  # Fixed for multi-agent
+            pdf_path=pdf_path,
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+            duration_seconds=0,  # Not tracked
+            final_verdict="multi_agent_completed",
+            status=run_result.get("status", "completed"),
+            error_message=run_result.get("error"),
+            pipeline_result_json=json.dumps(run_result.get("pipeline_result", {}), default=str),
+        )
+        db.add(run)
+
+        for event in run_result.get("tool_call_events", []):
+            te = ToolCallEvent(
+                run_id=run_id,
+                tool_name=event["tool_name"],
+                call_order=event["call_order"],
+                called_at=datetime.fromisoformat(event["called_at"]) if event.get("called_at") else None,
+                completed_at=datetime.fromisoformat(event["completed_at"]) if event.get("completed_at") else None,
+                latency_ms=event.get("latency_ms"),
+                args_json=event.get("args_json"),
+                result_json=json.dumps(event.get("result_json", {}), default=str),
+                accuracy_score=event.get("accuracy_score"),
+                error=event.get("error"),
+            )
+            db.add(te)
+
+        for entry in run_result.get("audit_log_entries", []):
+            al = AuditLogEntry(
+                run_id=run_id,
+                timestamp=datetime.fromisoformat(entry["timestamp"]) if entry.get("timestamp") else None,
+                event_type=entry["event_type"],
+                message=entry["message"],
+                metadata_json=entry.get("metadata_json"),
+            )
+            db.add(al)
+
+        await db.commit()
