@@ -109,10 +109,11 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
     toolEventMap[event.tool_name] = event
   }
 
+  const verdictKey = run.final_verdict ?? 'unknown'
   const verdictColor = {
     no_breach: '#10B981', imminent: '#F59E0B', breach: '#EF4444',
     breach_curable: '#F59E0B', unknown: '#9CA3AF',
-  }[run.final_verdict] ?? '#9CA3AF'
+  }[verdictKey] ?? '#9CA3AF'
 
   return (
     <div>
@@ -193,6 +194,23 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
           ))}
         </div>
 
+        {/* PDF Inputs */}
+        {run.pdfScenario?.input_summary && (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="section-label" style={{ marginBottom: 12 }}>PDF-Derived Inputs</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+              {Object.entries(run.pdfScenario.input_summary).map(([k, v]) => (
+                <div key={k} style={{ background: '#0B1220', borderRadius: 6, padding: 12 }}>
+                  <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 13, marginTop: 6 }}>
+                    {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Trajectory Timeline */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="section-label">Tool Execution Trajectory</div>
@@ -211,6 +229,26 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
             <span><span style={{ color: '#EF4444' }}>● </span>Called with error</span>
             <span><span style={{ color: '#4B5563' }}>○ </span>Skipped / not called</span>
             <span><span style={{ color: '#F59E0B' }}>★ </span>Critical step</span>
+          </div>
+        </div>
+
+        {/* Metric Breakdown */}
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="section-label" style={{ marginBottom: 12 }}>Metric Breakdown</div>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {(run.tool_accuracy_details ?? []).map((item, idx) => (
+              <div key={idx} style={{ background: '#0B1220', borderRadius: 6, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{item.tool_name}</span>
+                  <span style={{ color: item.accuracy_score >= 0.8 ? '#10B981' : '#F59E0B' }}>
+                    {(item.accuracy_score * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+                  {item.notes?.[0] ?? 'All checks passed'}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

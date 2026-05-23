@@ -15,13 +15,12 @@ ADK Callback Pattern:
   tools in timing decorators.
 """
 
-import asyncio
 import json
 import os
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from agent.covenant_agent import create_covenant_agent
 # DEBUG: instrument litellm to log token usage
@@ -46,6 +45,34 @@ litellm.success_callback = list(_orig_success_callback) + [_token_logger]
 from metrics.trajectory_tracker import compute_trajectory_score
 from metrics.tool_accuracy_scorer import score_tool_call_accuracy
 from metrics.clause_coverage_scorer import compute_clause_coverage
+
+VALID_TOOL_NAMES = {
+    "extract_financial_metrics",
+    "identify_applicable_covenants",
+    "check_accounting_adjustments",
+    "check_grace_period",
+    "calculate_breach_risk",
+    "generate_report",
+}
+
+
+def _skip_tools_for_autonomy(
+    autonomy_level: int,
+    borrower_has_adjustments: bool,
+    borrower_has_grace: bool,
+) -> set[str]:
+    skip_tools: set[str] = set()
+    if autonomy_level >= 2:
+        if borrower_has_grace:
+            skip_tools.add("check_grace_period")
+        elif borrower_has_adjustments:
+            skip_tools.add("check_accounting_adjustments")
+    if autonomy_level >= 3:
+        if borrower_has_adjustments:
+            skip_tools.add("check_accounting_adjustments")
+        if borrower_has_grace:
+            skip_tools.add("check_grace_period")
+    return skip_tools
 
 
 class RunContext:
@@ -111,52 +138,14 @@ class RunContext:
         })
 
 
-def _make_instrumented_tools(ctx: RunContext, borrower_has_adjustments: bool):
-    """
-    Wraps each tool function with timing and logging.
-    Used as fallback when ADK callbacks aren't available.
-    """
-    from agent.tools import (
-        extract_financial_metrics,
-        identify_applicable_covenants,
-        check_accounting_adjustments,
-        check_grace_period,
-        calculate_breach_risk,
-        generate_report,
-    )
-
-    def wrap(fn):
-        def wrapper(*args, **kwargs):
-            # Build args dict for logging
-            import inspect
-            sig = inspect.signature(fn)
-            bound = sig.bind(*args, **kwargs)
-            bound.apply_defaults()
-            args_dict = dict(bound.arguments)
-
-            ctx.record_tool_start(fn.__name__, args_dict)
-            try:
-                result = fn(*args, **kwargs)
-                ctx.record_tool_end(fn.__name__, result)
-                return result
-            except Exception as e:
-                ctx.record_tool_end(fn.__name__, None, error=str(e))
-                raise
-
-        wrapper.__name__ = fn.__name__
-        wrapper.__doc__ = fn.__doc__
-        # Copy type hints so ADK can still introspect
-        wrapper.__annotations__ = getattr(fn, "__annotations__", {})
-        return wrapper
-
-    return [
-        wrap(extract_financial_metrics),
-        wrap(identify_applicable_covenants),
-        wrap(check_accounting_adjustments),
-        wrap(check_grace_period),
-        wrap(calculate_breach_risk),
-        wrap(generate_report),
-    ]
+def _tool_error_guard(tool, args, tool_context, error):
+    tool_name = getattr(tool, "name", str(tool))
+    if tool_name not in VALID_TOOL_NAMES:
+        return {
+            "error": f"Invalid tool call: {tool_name}",
+            "available_tools": sorted(VALID_TOOL_NAMES),
+        }
+    return None
 
 
 async def run_agent_with_metrics(
@@ -166,6 +155,7 @@ async def run_agent_with_metrics(
     autonomy_level: int = 1,
     ground_truth: dict | None = None,
     simulate_skip_tool: str | None = None,   # TEST ONLY: name of tool to skip
+    run_id: str | None = None,
 ) -> dict:
     """
     Runs the covenant breach agent and captures full process metrics.
@@ -182,12 +172,12 @@ async def run_agent_with_metrics(
         borrower_id: Borrower identifier (e.g. 'CORP-001').
         pdf_path: Path to the financial report PDF.
         autonomy_level: 1 (constrained), 2 (moderate), 3 (high).
-        ground_truth: Optional scenario dict for outcome comparison.
+        ground_truth: Scenario payload derived from the PDF catalog for outcome comparison.
 
     Returns:
         Complete run record dict including all metrics, tool events, and audit log.
     """
-    run_id = str(uuid.uuid4())
+    run_id = run_id or str(uuid.uuid4())
     ctx = RunContext(run_id, scenario_id, borrower_id, autonomy_level)
 
     # Load borrower profile for metric computation
@@ -204,28 +194,35 @@ async def run_agent_with_metrics(
 
     borrower_has_adjustments = borrower_profile.get("has_accounting_adjustments", False)
     borrower_has_grace = borrower_profile.get("has_grace_period", False)
-
-    # Build instrumented tools for this run
-    instrumented_tools = _make_instrumented_tools(ctx, borrower_has_adjustments)
-
-    # ── SIMULATION MODE (no LLM needed) ───────────────────────────────────────
-    # simulate_skip_tool = None  → use LLM (production mode)
-    # simulate_skip_tool = ""    → simulate all tools, skip nothing
-    # simulate_skip_tool = "tool_name" → simulate but skip that tool
+    skip_tools = _skip_tools_for_autonomy(autonomy_level, borrower_has_adjustments, borrower_has_grace)
     if simulate_skip_tool is not None:
+        skip_tools = {simulate_skip_tool}
+    use_llm_agent = os.getenv("USE_LLM_AGENT", "0") == "1" and autonomy_level > 1
+
+    final_output = None
+    agent_error = None
+
+    # L1 is deterministic so the workflow always completes and remains auditable.
+    # L2/L3 also default to deterministic tool sequencing unless explicitly
+    # enabled via USE_LLM_AGENT=1.
+    if not use_llm_agent or simulate_skip_tool is not None or autonomy_level == 1:
         final_output = await _simulate_tool_run(
-            ctx, instrumented_tools, pdf_path, borrower_id, scenario_id, simulate_skip_tool
+            ctx,
+            pdf_path,
+            borrower_id,
+            scenario_id,
+            skip_tools=skip_tools,
         )
         completed_at = datetime.now(timezone.utc)
     else:
-        # ── LLM-DRIVEN AGENT PATH ────────────────────────────────────────────────
-        # Create agent with instrumented tools
-        ollama_model = None  # ignored; covenant_agent.py reads LITELLM_MODEL directly
-        agent = create_covenant_agent(autonomy_level, ollama_model)
+        # L2/L3 use the LLM agent path.
+        ollama_model = None  # ignored; covenant_agent.py reads OLLAMA_MODEL directly
+        agent = create_covenant_agent(
+            autonomy_level,
+            ollama_model,
+            on_tool_error_callback=_tool_error_guard,
+        )
 
-    # LLM run block — only executed when NOT in simulation mode
-    agent_error = None
-    if simulate_skip_tool is None:
         completed_at = None
         try:
             ctx._add_audit("agent_thinking", f"Agent starting run for scenario {scenario_id}", {
@@ -239,86 +236,58 @@ async def run_agent_with_metrics(
                 f"Determine if a covenant breach has occurred or is imminent."
             )
 
-            # ADK v1.31 runner pattern
-            try:
-                from google.adk.runners import InMemoryRunner
-                from google.genai import types as genai_types
+            from google.adk.runners import InMemoryRunner
+            from google.genai import types as genai_types
 
-                runner = InMemoryRunner(agent=agent, app_name="covenant_agent")
+            runner = InMemoryRunner(agent=agent, app_name="covenant_agent")
+            session = await runner.session_service.create_session(
+                app_name="covenant_agent", user_id="thesis"
+            )
 
-                # Create a session first
-                session = await runner.session_service.create_session(
-                    app_name="covenant_agent", user_id="thesis"
-                )
+            msg = genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
 
-                msg = genai_types.Content(
-                    role="user",
-                    parts=[genai_types.Part(text=prompt)]
-                )
+            async for event in runner.run_async(
+                user_id="thesis",
+                session_id=session.id,
+                new_message=msg,
+            ):
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_output = event.content.parts[0].text
+                    break
 
-                async for event in runner.run_async(
-                    user_id="thesis",
-                    session_id=session.id,
-                    new_message=msg,
-                ):
-                    if event.is_final_response():
-                        if event.content and event.content.parts:
-                            final_output = event.content.parts[0].text
-                            break
-
-            except Exception as runner_err:
-                import traceback
-                tb_str = traceback.format_exc()
-                print("=" * 70, flush=True)
-                print("=== AGENT RUNNER CRASH — FULL TRACEBACK ===", flush=True)
-                print(tb_str, flush=True)
-                print("=" * 70, flush=True)
-                ctx._add_audit("debug_traceback", "Full runner exception", {"traceback": tb_str[-2000:]})
-                err_text = str(runner_err)
-                if "requires more system memory" in err_text.lower():
-                    fallback_model = "llama3.2:3b"
-                    ctx._add_audit(
-                        "model_fallback",
-                        f"Memory error with {os.getenv('OLLAMA_MODEL', 'llama2:7b')}; retrying with {fallback_model}",
-                        {"error": err_text},
-                    )
-                    try:
-                        agent = create_covenant_agent(autonomy_level, fallback_model)
-                        runner = InMemoryRunner(agent=agent, app_name="covenant_agent")
-                        session = await runner.session_service.create_session(
-                            app_name="covenant_agent", user_id="thesis"
-                        )
-                        msg = genai_types.Content(
-                            role="user",
-                            parts=[genai_types.Part(text=prompt)]
-                        )
-                        final_output = None
-                        async for event in runner.run_async(
-                            user_id="thesis",
-                            session_id=session.id,
-                            new_message=msg,
-                        ):
-                            if event.is_final_response():
-                                if event.content and event.content.parts:
-                                    final_output = event.content.parts[0].text
-                                    break
-                        if final_output is None:
-                            raise RuntimeError("No final response received from fallback model")
-                        agent_error = None
-                    except Exception as fallback_err:
-                        agent_error = f"ADK runner error: {fallback_err}"
-                        final_output = f"Agent run failed: {fallback_err}"
-                else:
-                    agent_error = f"ADK runner error: {runner_err}"
-                    final_output = f"Agent run failed: {runner_err}"
+            if not final_output:
+                raise RuntimeError("No final response received from agent")
 
             completed_at = datetime.now(timezone.utc)
             ctx._add_audit("final_output", f"Agent completed. Output: {str(final_output)[:300]}", {})
 
-        except Exception as e:
-            agent_error = str(e)
-            completed_at = datetime.now(timezone.utc)
-            ctx._add_audit("final_output", f"Agent failed with error: {e}", {"error": str(e)})
+        except Exception as runner_err:
+            import traceback
+            tb_str = traceback.format_exc()
+            print("=" * 70, flush=True)
+            print("=== AGENT RUNNER CRASH — FULL TRACEBACK ===", flush=True)
+            print(tb_str, flush=True)
+            print("=" * 70, flush=True)
+            ctx._add_audit("debug_traceback", "Full runner exception", {"traceback": tb_str[-2000:]})
+            ctx._add_audit(
+                "llm_fallback",
+                "LLM agent path failed; falling back to deterministic tool simulation.",
+                {"error": str(runner_err)},
+            )
+            try:
+                final_output = await _simulate_tool_run(
+                    ctx,
+                    pdf_path,
+                    borrower_id,
+                    scenario_id,
+                    skip_tools=skip_tools,
+                )
+                agent_error = None
+            except Exception as fallback_err:
+                agent_error = f"ADK runner error: {runner_err} | fallback error: {fallback_err}"
+                final_output = f"Agent run failed: {fallback_err}"
+            finally:
+                completed_at = datetime.now(timezone.utc)
 
     # ── Compute metrics from recorded tool events ──────────────────────────
     tool_sequence = [e["tool_name"] for e in ctx.tool_events]
@@ -326,6 +295,7 @@ async def run_agent_with_metrics(
 
     # Score each tool call
     tool_accuracy_scores = []
+    tool_accuracy_details = []
     for event in ctx.tool_events:
         result = _json.loads(event["result_json"]) if event.get("result_json") else {}
         args = _json.loads(event["args_json"]) if event.get("args_json") else {}
@@ -334,6 +304,11 @@ async def run_agent_with_metrics(
         )
         event["accuracy_score"] = score["accuracy_score"]
         tool_accuracy_scores.append(score["accuracy_score"])
+        tool_accuracy_details.append({
+            **score,
+            "args": args,
+            "result": result,
+        })
 
     tool_call_accuracy_score = round(
         sum(tool_accuracy_scores) / len(tool_accuracy_scores), 4
@@ -408,6 +383,7 @@ async def run_agent_with_metrics(
         "trajectory_score": trajectory["trajectory_score"],
         "trajectory_details": trajectory,
         "tool_call_accuracy_score": tool_call_accuracy_score,
+        "tool_accuracy_details": tool_accuracy_details,
         "clause_coverage_score": coverage["clause_coverage_score"],
         "clause_coverage_details": coverage,
         "latency_profile": latency_profile,
@@ -418,6 +394,14 @@ async def run_agent_with_metrics(
         "grace_period_clause_checked": coverage["grace_period_clause_checked"],
         "adjustment_changes_verdict": ground_truth.get("adjustment_changes_verdict", False) if ground_truth else False,
         "tools_called": [e["tool_name"] for e in ctx.tool_events],
+        "pdfScenario": ground_truth,
+        "scenario_inputs": ground_truth.get("input_summary") if ground_truth else None,
+        "research_signals": {
+            "h1_hidden_process_error": bool(outcome_correct and process_error_detected),
+            "h2_autonomy_risk_signal": bool(autonomy_level > 1 and process_error_detected),
+            "control_baseline_expected": autonomy_level == 1,
+            "transparency_artifacts_present": bool(ctx.tool_events and ctx.audit_entries),
+        },
 
         # Status
         "status": "failed" if agent_error else "completed",
@@ -428,24 +412,16 @@ async def run_agent_with_metrics(
         "audit_log_entries": ctx.audit_entries,
         "final_output": final_output,
     }
-
-
-def _get_instruction(autonomy_level: int) -> str:
-    from agent.covenant_agent import LEVEL_1_INSTRUCTION, LEVEL_2_INSTRUCTION, LEVEL_3_INSTRUCTION
-    return {1: LEVEL_1_INSTRUCTION, 2: LEVEL_2_INSTRUCTION, 3: LEVEL_3_INSTRUCTION}[autonomy_level]
-
-
 async def _simulate_tool_run(
     ctx: RunContext,
-    instrumented_tools: list,
     pdf_path: str,
     borrower_id: str,
     scenario_id: str,
-    skip_tool: str,
+    skip_tools: set[str] | None = None,
 ) -> str:
     """
     Runs all tools directly (no LLM) in the expected sequence,
-    skipping the tool named in skip_tool. Used for deterministic testing.
+    skipping any tools named in skip_tools. Used for deterministic testing.
     """
     from agent.tools import (
         extract_financial_metrics,
@@ -456,11 +432,12 @@ async def _simulate_tool_run(
         generate_report,
     )
 
-    ctx._add_audit("agent_thinking", f"[SIMULATION] Running tools directly (skip={skip_tool})", {})
+    skip_tools = set(skip_tools or ())
+    ctx._add_audit("agent_thinking", f"[SIMULATION] Running tools directly (skip={sorted(skip_tools)})", {})
 
     # Step 1
     metrics = {}
-    if skip_tool != "extract_financial_metrics":
+    if "extract_financial_metrics" not in skip_tools:
         ctx.record_tool_start("extract_financial_metrics", {"pdf_path": pdf_path, "borrower_id": borrower_id})
         metrics = extract_financial_metrics(pdf_path, borrower_id)
         ctx.record_tool_end("extract_financial_metrics", metrics)
@@ -469,7 +446,7 @@ async def _simulate_tool_run(
 
     # Step 2
     cov = {}
-    if skip_tool != "identify_applicable_covenants":
+    if "identify_applicable_covenants" not in skip_tools:
         ctx.record_tool_start("identify_applicable_covenants", {"borrower_id": borrower_id})
         cov = identify_applicable_covenants(borrower_id)
         ctx.record_tool_end("identify_applicable_covenants", cov)
@@ -478,7 +455,7 @@ async def _simulate_tool_run(
     adj = {"adjusted_ebitda": metrics.get("reported_ebitda", 0),
            "adjusted_debt": metrics.get("total_debt", 0),
            "adjustments_applicable": False, "adjustment_amount": 0, "adjustment_notes": "Skipped"}
-    if skip_tool != "check_accounting_adjustments":
+    if "check_accounting_adjustments" not in skip_tools:
         ctx.record_tool_start("check_accounting_adjustments",
                               {"borrower_id": borrower_id, "raw_financials": metrics})
         adj = check_accounting_adjustments(borrower_id, metrics)
@@ -489,14 +466,14 @@ async def _simulate_tool_run(
 
     # Step 4
     gp = {"has_grace_period": False, "cure_available": False}
-    if skip_tool != "check_grace_period":
+    if "check_grace_period" not in skip_tools:
         ctx.record_tool_start("check_grace_period", {"borrower_id": borrower_id})
         gp = check_grace_period(borrower_id)
         ctx.record_tool_end("check_grace_period", gp)
 
     # Step 5
     breach = {}
-    if skip_tool != "calculate_breach_risk" and metrics and cov:
+    if "calculate_breach_risk" not in skip_tools and metrics and cov:
         payload = {
             "adjusted_ebitda": adj.get("adjusted_ebitda", metrics.get("reported_ebitda", 0)),
             "adjusted_debt": adj.get("adjusted_debt", metrics.get("total_debt", 0)),
@@ -512,9 +489,17 @@ async def _simulate_tool_run(
 
     # Step 6
     report = {}
-    if skip_tool != "generate_report" and breach:
+    if "generate_report" not in skip_tools and breach:
         ctx.record_tool_start("generate_report",
-                              {"scenario_id": scenario_id, "borrower_id": borrower_id})
+                              {
+                                  "scenario_id": scenario_id,
+                                  "borrower_id": borrower_id,
+                                  "extraction_result": metrics,
+                                  "covenant_result": cov,
+                                  "adjustment_result": adj,
+                                  "grace_period_result": gp,
+                                  "breach_result": breach,
+                              })
         report = generate_report(scenario_id, borrower_id, metrics, cov, adj, gp, breach)
         ctx.record_tool_end("generate_report", report)
 

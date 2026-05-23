@@ -76,12 +76,12 @@ def compute_clause_coverage(
 
     # Count coverage
     checked_count = sum([
-        financial_complete,
-        covenants_identified,
-        risk_calculated,
-        report_generated,
-        adjustment_checked if borrower_has_adjustments else True,
-        grace_period_checked if borrower_has_grace_period else True,
+        int(financial_complete),
+        int(covenants_identified),
+        int(risk_calculated),
+        int(report_generated),
+        int(adjustment_checked) if borrower_has_adjustments else 0,
+        int(grace_period_checked) if borrower_has_grace_period else 0,
     ])
     total_required = 4 + (1 if borrower_has_adjustments else 0) + (1 if borrower_has_grace_period else 0)
 

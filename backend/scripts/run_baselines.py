@@ -64,13 +64,13 @@ async def store_baseline_runs(baseline_type: str, results: list):
     print(f"✅ Stored {len(results)} {baseline_type} runs")
 
 def load_scenarios():
-    """Load test scenarios from ground_truth.json"""
-    ground_truth_path = Path(__file__).parent.parent / "data" / "ground_truth.json"
-    if not ground_truth_path.exists():
+    """Load test scenarios from the generated PDF catalog."""
+    scenario_path = Path(__file__).parent.parent / "data" / "ground_truth.json"
+    if not scenario_path.exists():
         print("❌ ground_truth.json not found. Run generate_scenarios.py first.")
         sys.exit(1)
 
-    with open(ground_truth_path) as f:
+    with open(scenario_path) as f:
         data = json.load(f)
 
     scenarios = []

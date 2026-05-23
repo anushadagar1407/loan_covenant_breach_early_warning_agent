@@ -120,7 +120,7 @@ export default function RunsPage() {
                       </span>
                     </td>
                     <td>
-                      <span className={`badge ${VERDICT_BADGE[run.final_verdict] ?? 'badge-grey'}`}>
+                      <span className={`badge ${VERDICT_BADGE[run.final_verdict ?? 'unknown'] ?? 'badge-grey'}`}>
                         {run.final_verdict?.toUpperCase().replace('_', ' ')}
                       </span>
                     </td>

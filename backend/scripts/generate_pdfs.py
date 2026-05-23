@@ -47,9 +47,8 @@ PERIOD_MAP = {
 
 
 def _fmt_eur(val: float) -> str:
-    """Format a number as EUR millions."""
-    millions = val / 1_000_000
-    return f"EUR {millions:,.1f}M"
+    """Format a scenario value already expressed in EUR millions."""
+    return f"EUR {val:,.1f}M"
 
 
 def generate_pdf(scenario: dict, borrower: dict):
@@ -205,7 +204,7 @@ def generate_pdf(scenario: dict, borrower: dict):
     if restructuring > 0:
         story.append(Paragraph(
             f"During the period, the Group incurred non-recurring restructuring charges of "
-            f"EUR {restructuring/1e6:.1f}M relating to the consolidation of manufacturing "
+            f"EUR {restructuring:.1f}M relating to the consolidation of manufacturing "
             f"facilities and associated workforce reorganisation. These charges are considered "
             f"non-recurring in nature. Under Schedule 4 of the Facility Agreement, restructuring "
             f"charges may be treated as an EBITDA add-back for covenant testing purposes, "
@@ -215,7 +214,7 @@ def generate_pdf(scenario: dict, borrower: dict):
 
     if decommissioning > 0:
         story.append(Paragraph(
-            f"The Group recognised decommissioning costs of EUR {decommissioning/1e6:.1f}M "
+            f"The Group recognised decommissioning costs of EUR {decommissioning:.1f}M "
             f"in the current period, primarily related to the retirement of legacy energy "
             f"generation assets. Pursuant to Schedule 7 of the Facility Agreement, decommissioning "
             f"costs up to EUR 5.0M per annum may be added back to EBITDA for the purposes of "
@@ -225,7 +224,7 @@ def generate_pdf(scenario: dict, borrower: dict):
 
     if legal_costs > 0:
         story.append(Paragraph(
-            f"Exceptional legal costs of EUR {legal_costs/1e6:.1f}M were incurred in Q2 and Q3 "
+            f"Exceptional legal costs of EUR {legal_costs:.1f}M were incurred in Q2 and Q3 "
             f"in connection with legacy litigation proceedings. Under the terms of the Facility "
             f"Agreement, up to EUR 2.0M of exceptional legal costs may be excluded from the "
             f"debt calculation for the purposes of covenant testing during Q2 and Q3 reporting "

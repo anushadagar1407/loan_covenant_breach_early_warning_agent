@@ -43,6 +43,8 @@ async def get_registry_summary(session: AsyncSession) -> dict:
     gap_score = process_error_rate - outcome_error_rate
     avg_coverage = sum(coverages) / total_runs
     avg_trajectory = sum(trajectories) / total_runs
+    compliance_rate = fully_compliant / total_runs
+    h1_evidence_count = sum(1 for r in runs if r.outcome_correct and r.process_error_detected)
 
     h1_validation = _to_py(validate_h1_gap_score(runs))
     h2_validation = _to_py(validate_h2_autonomy_errors(runs))
@@ -72,12 +74,15 @@ async def get_registry_summary(session: AsyncSession) -> dict:
         "process_errors": process_errors,
         "outcome_errors": outcome_errors,
         "fully_compliant_runs": fully_compliant,
+        "compliance_rate": compliance_rate,
         "avg_clause_coverage_score": avg_coverage,
         "avg_trajectory_score": avg_trajectory,
         "h1_validation": h1_validation,
         "h2_validation": h2_validation,
         "classification_metrics": classification_metrics,
         "level_stats": level_stats,
+        "runs_by_autonomy_level": level_stats,
+        "h1_evidence": {"count": h1_evidence_count},
     }
 
 async def get_h1_evidence(session: AsyncSession) -> dict:
@@ -95,16 +100,20 @@ async def get_h1_evidence(session: AsyncSession) -> dict:
 
     evidence_runs = [
         {
-            "id": r.id,
+            "run_id": r.run_id,
             "scenario_id": r.scenario_id,
             "borrower_id": r.borrower_id,
+            "borrower_name": r.borrower_name,
             "autonomy_level": r.autonomy_level,
+            "clause_coverage_score": r.clause_coverage_score,
+            "final_verdict": r.final_verdict,
         }
         for r in runs
     ]
 
     return {
-        "h1_evidence_count": len(runs),
+        "h1_run_count": len(runs),
+        "interpretation": "Runs with correct outcomes but non-compliant process steps.",
         "runs": evidence_runs,
     }
     
@@ -112,7 +121,7 @@ async def get_h2_evidence(session: AsyncSession) -> dict:
     """
     H2 Evidence: process error rates by autonomy level.
     """
-    evidence = []
+    evidence = {}
 
     for level in [1, 2, 3]:
         result = await session.execute(
@@ -125,20 +134,20 @@ async def get_h2_evidence(session: AsyncSession) -> dict:
         total = len(level_runs)
         process_errors = sum(1 for r in level_runs if r.process_error_detected)
         avg_coverage = sum((r.clause_coverage_score or 0.0) for r in level_runs) / total
-        outcome_accuracy = sum(1 for r in level_runs if r.outcome_correct) / total
+        outcome_errors = sum(1 for r in level_runs if not r.outcome_correct)
 
-        evidence.append(
-            {
-                "autonomy_level": level,
-                "total_runs": total,
-                "process_errors": process_errors,
-                "process_error_rate": process_errors / total,
-                "avg_clause_coverage": avg_coverage,
-                "outcome_accuracy": outcome_accuracy,
-            }
-        )
+        evidence[str(level)] = {
+            "count": total,
+            "process_error_rate": process_errors / total,
+            "avg_clause_coverage": avg_coverage,
+            "outcome_error_rate": outcome_errors / total,
+            "gap_score": (process_errors / total) - (outcome_errors / total),
+        }
 
-    return {"evidence": evidence}
+    return {
+        "interpretation": "Higher autonomy is associated with more process errors and lower clause coverage.",
+        "by_autonomy_level": evidence,
+    }
 
 
 async def get_baseline_comparison(session: AsyncSession, baseline_type: str) -> dict:
