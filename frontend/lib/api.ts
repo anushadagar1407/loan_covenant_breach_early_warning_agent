@@ -38,7 +38,10 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scenario_id: scenarioId, autonomy_level: autonomyLevel }),
-    }).then(r => r.json()),
+    }).then(async r => {
+      if (!r.ok) throw new Error(`API error ${r.status}: /api/runs`)
+      return r.json()
+    }),
 
   health: (): Promise<{ status: string; ollama_connected: boolean; db_connected: boolean }> =>
     fetchJSON('/health'),

@@ -52,26 +52,78 @@ export interface RegistrySummary {
   h2_validation: H2Validation;
   classification_metrics: ClassificationMetrics;
   avg_clause_coverage_score: number;
+  avg_trajectory_score?: number;
   fully_compliant_runs: number;
+  compliance_rate?: number;
   level_stats: any;
+  runs_by_autonomy_level?: any;
+  h1_evidence?: { count: number };
 }
 
 export interface Scenario {
-  id: string;
-  name: string;
-  description: string;
-  autonomy_levels: number[];          // adjust if your backend differs
+  scenario_id: string;
+  pdf_filename: string;
+  pdf_path: string;
+  borrower_id: string;
+  borrower_name: string;
+  quarter: string;
+  year: number;
+  expected_verdict: string;
+  raw_financials: Record<string, any>;
+  covenants: Record<string, any>;
+  adjustments: Record<string, any>;
+  grace_period_info: Record<string, any>;
+  adjusted_financials: Record<string, any>;
+  breach_result: Record<string, any>;
+  report: Record<string, any>;
+  input_summary: Record<string, any>;
+  reasoning: string;
 }
 
 export interface AgentRun {
-  id: string;
+  id?: string;
+  run_id: string;
   scenario_id: string;
   autonomy_level: number;
-  status: string;
-  created_at: string;                 // ISO timestamp
+  status?: string;
+  created_at?: string;                // ISO timestamp
+  borrower_id?: string;
+  borrower_name?: string;
+  pdf_path?: string;
+  started_at?: string;
+  completed_at?: string | null;
+  duration_seconds?: number | null;
+  final_verdict?: string;
+  correct_verdict?: string;
+  outcome_correct?: boolean | null;
+  trajectory_score?: number;
+  tool_call_accuracy_score?: number;
+  tool_accuracy_details?: any[];
+  clause_coverage_score?: number;
+  clause_coverage_details?: any;
+  process_error_detected?: boolean;
+  pdfScenario?: Scenario;
+  scenario_inputs?: Record<string, any> | null;
 }
 
 export interface RunDetail extends AgentRun {
   steps: any[];                       // or a more detailed type if you prefer
   metrics: any;
+  clauseCoverage?: number;
+  trajectory?: any;
+  verdict?: string;
+  h1Evidence?: any[];
+  h2Evidence?: any[];
+  tool_call_events?: any[];
+  audit_log_entries?: any[];
+  status?: string;
+  error_message?: string | null;
+  final_verdict?: string;
+  correct_verdict?: string;
+  outcome_correct?: boolean | null;
+  clause_coverage_score?: number;
+  trajectory_score?: number;
+  tool_call_accuracy_score?: number;
+  process_error_detected?: boolean;
+  duration_seconds?: number | null;
 }

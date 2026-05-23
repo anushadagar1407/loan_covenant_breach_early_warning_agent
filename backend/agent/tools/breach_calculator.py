@@ -5,6 +5,8 @@ determines the breach verdict. This is the final computation step
 before report generation.
 """
 
+import json
+
 
 def calculate_breach_risk(
     adjusted_financials: dict,
@@ -26,16 +28,23 @@ def calculate_breach_risk(
     - 'breach_curable': Breach confirmed but a grace period is available
 
     Args:
-        adjusted_financials: Dict with adjusted_ebitda, adjusted_debt,
-            interest_expense, current_assets, current_liabilities.
-        covenants: Dict with max_debt_to_ebitda, min_interest_coverage,
-            min_liquidity_ratio (from identify_applicable_covenants).
-        grace_period_info: Dict from check_grace_period.
+    adjusted_financials: Dict with adjusted_ebitda, adjusted_debt,
+    interest_expense, current_assets, current_liabilities.
+    covenants: Dict with max_debt_to_ebitda, min_interest_coverage,
+    min_liquidity_ratio (from identify_applicable_covenants).
+    grace_period_info: Dict from check_grace_period.
 
     Returns:
-        dict with computed ratios, per-covenant status, verdict, severity
-        score, and human-readable risk flags.
+    dict with computed ratios, per-covenant status, verdict, severity
+    score, and human-readable risk flags.
     """
+    # --- Fix: Parse adjusted_financials if it's a string ---
+    if isinstance(adjusted_financials, str):
+        try:
+            adjusted_financials = json.loads(adjusted_financials)
+        except Exception:
+            adjusted_financials = {}
+
     # --- Extract values safely ---
     adjusted_ebitda = float(adjusted_financials.get("adjusted_ebitda", 0))
     adjusted_debt = float(adjusted_financials.get("adjusted_debt", 0))

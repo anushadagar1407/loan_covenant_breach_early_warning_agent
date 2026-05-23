@@ -5,6 +5,7 @@ Endpoints for triggering and querying agent runs.
 """
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -16,11 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.db import get_db
 from database.models import AgentRun, ToolCallEvent, AuditLogEntry
+from agent.scenario_catalog import get_pdf_scenario, list_pdf_scenarios
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-GROUND_TRUTH_PATH = Path(__file__).parent.parent.parent / "data" / "ground_truth.json"
-PDFS_PATH = Path(__file__).parent.parent.parent / "data" / "synthetic_pdfs"
+BORROWER_PROFILES_PATH = Path(__file__).parent.parent.parent / "data" / "borrower_profiles.json"
 
 
 class RunRequest(BaseModel):
@@ -34,54 +36,109 @@ class MultiAgentRequest(BaseModel):
     config: Optional[dict] = None
 
 
+def _load_scenario(scenario_id: str) -> dict | None:
+    return get_pdf_scenario(scenario_id)
+
+
+def _load_borrower_name(borrower_id: str) -> str:
+    if not BORROWER_PROFILES_PATH.exists():
+        return borrower_id
+    with open(BORROWER_PROFILES_PATH) as f:
+        profiles = json.load(f)
+    borrower = next((b for b in profiles.get("borrowers", []) if b["borrower_id"] == borrower_id), None)
+    return borrower.get("name", borrower_id) if borrower else borrower_id
+
+
+async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, pdf_path: str, status: str, run_result: dict | None = None, error_message: str | None = None):
+    run = await db.execute(select(AgentRun).where(AgentRun.run_id == run_id))
+    run = run.scalar_one_or_none()
+    if not run:
+        run = AgentRun(
+            run_id=run_id,
+            scenario_id=scenario["scenario_id"],
+            borrower_id=scenario["borrower_id"],
+            borrower_name=_load_borrower_name(scenario["borrower_id"]),
+            autonomy_level=autonomy_level,
+            pdf_path=pdf_path,
+            started_at=datetime.utcnow(),
+            status=status,
+        )
+        db.add(run)
+
+    run.scenario_id = scenario["scenario_id"]
+    run.borrower_id = scenario["borrower_id"]
+    run.borrower_name = run_result.get("borrower_name", _load_borrower_name(scenario["borrower_id"])) if run_result else _load_borrower_name(scenario["borrower_id"])
+    run.autonomy_level = autonomy_level
+    run.pdf_path = pdf_path
+    run.status = status
+    if run_result:
+        run.started_at = datetime.fromisoformat(run_result["started_at"])
+        run.completed_at = datetime.fromisoformat(run_result["completed_at"]) if run_result.get("completed_at") else None
+        run.duration_seconds = run_result.get("duration_seconds")
+        run.final_verdict = run_result.get("final_verdict")
+        run.correct_verdict = run_result.get("correct_verdict")
+        run.outcome_correct = run_result.get("outcome_correct")
+        run.trajectory_score = run_result.get("trajectory_score")
+        run.tool_call_accuracy_score = run_result.get("tool_call_accuracy_score")
+        run.clause_coverage_score = run_result.get("clause_coverage_score")
+        run.process_error_detected = run_result.get("process_error_detected", False)
+        run.adjustment_clause_checked = run_result.get("adjustment_clause_checked", False)
+        run.grace_period_clause_checked = run_result.get("grace_period_clause_checked", False)
+        run.adjustment_changes_verdict = run_result.get("adjustment_changes_verdict", False)
+        run.breach_severity_score = run_result.get("breach_severity_score")
+        run.error_message = run_result.get("error_message")
+        run.pipeline_result_json = json.dumps(run_result, default=str)
+    elif error_message is not None:
+        run.error_message = error_message
+    return run
+
+
 async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int):
     """Background task: runs agent and persists results."""
     from database.db import AsyncSessionLocal
     from agent.agent_runner import run_agent_with_metrics
 
-    # Load scenario
-    with open(GROUND_TRUTH_PATH) as f:
-        gt_data = json.load(f)
-    scenario = next((s for s in gt_data["scenarios"] if s["scenario_id"] == scenario_id), None)
+    scenario = _load_scenario(scenario_id)
     if not scenario:
+        logger.error("Scenario not found for background run: %s", scenario_id)
         return
 
-    pdf_path = str(PDFS_PATH / scenario.get("pdf_filename", f"{scenario_id}.pdf"))
-
-    run_result = await run_agent_with_metrics(
-        scenario_id=scenario_id,
-        borrower_id=scenario["borrower_id"],
-        pdf_path=pdf_path,
-        autonomy_level=autonomy_level,
-        ground_truth=scenario,
-    )
-
-    # Persist to database
     async with AsyncSessionLocal() as db:
-        run = AgentRun(
-            run_id=run_id,
-            scenario_id=scenario_id,
-            borrower_id=run_result["borrower_id"],
-            borrower_name=run_result["borrower_name"],
-            autonomy_level=autonomy_level,
-            pdf_path=pdf_path,
-            started_at=datetime.fromisoformat(run_result["started_at"]),
-            completed_at=datetime.fromisoformat(run_result["completed_at"]) if run_result.get("completed_at") else None,
-            duration_seconds=run_result.get("duration_seconds"),
-            final_verdict=run_result.get("final_verdict"),
-            correct_verdict=run_result.get("correct_verdict"),
-            outcome_correct=run_result.get("outcome_correct"),
-            trajectory_score=run_result.get("trajectory_score"),
-            tool_call_accuracy_score=run_result.get("tool_call_accuracy_score"),
-            clause_coverage_score=run_result.get("clause_coverage_score"),
-            process_error_detected=run_result.get("process_error_detected", False),
-            adjustment_clause_checked=run_result.get("adjustment_clause_checked", False),
-            grace_period_clause_checked=run_result.get("grace_period_clause_checked", False),
-            adjustment_changes_verdict=run_result.get("adjustment_changes_verdict", False),
-            status=run_result.get("status", "completed"),
-            error_message=run_result.get("error_message"),
-        )
-        db.add(run)
+        try:
+            run_result = await run_agent_with_metrics(
+                scenario_id=scenario_id,
+                borrower_id=scenario["borrower_id"],
+                pdf_path=scenario["pdf_path"],
+                autonomy_level=autonomy_level,
+                ground_truth=scenario,
+                run_id=run_id,
+            )
+
+            run = await _upsert_run_row(
+                db,
+                run_id=run_id,
+                scenario=scenario,
+                autonomy_level=autonomy_level,
+                pdf_path=scenario["pdf_path"],
+                status=run_result.get("status", "completed"),
+                run_result=run_result,
+            )
+            db.add(run)
+
+        except Exception as exc:
+            logger.exception("Agent run failed for %s", run_id)
+            run = await _upsert_run_row(
+                db,
+                run_id=run_id,
+                scenario=scenario,
+                autonomy_level=autonomy_level,
+                pdf_path=scenario["pdf_path"],
+                status="failed",
+                error_message=str(exc),
+            )
+            db.add(run)
+            await db.commit()
+            return
 
         for event in run_result.get("tool_call_events", []):
             te = ToolCallEvent(
@@ -112,26 +169,38 @@ async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int):
 
 
 @router.post("/runs")
-async def start_run(request: RunRequest, background_tasks: BackgroundTasks):
+async def start_run(
+    request: RunRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Trigger a new agent run. Returns immediately with run_id.
     The agent executes in a background task.
     """
     import uuid
 
-    # Validate scenario
-    if not GROUND_TRUTH_PATH.exists():
-        raise HTTPException(status_code=500, detail="ground_truth.json not found")
-
-    with open(GROUND_TRUTH_PATH) as f:
-        gt_data = json.load(f)
-    if not any(s["scenario_id"] == request.scenario_id for s in gt_data["scenarios"]):
+    scenario = _load_scenario(request.scenario_id)
+    if not scenario:
         raise HTTPException(status_code=404, detail=f"Scenario {request.scenario_id} not found")
 
     if request.autonomy_level not in (1, 2, 3):
         raise HTTPException(status_code=400, detail="autonomy_level must be 1, 2, or 3")
 
     run_id = str(uuid.uuid4())
+    pending_run = AgentRun(
+        run_id=run_id,
+        scenario_id=scenario["scenario_id"],
+        borrower_id=scenario["borrower_id"],
+        borrower_name=_load_borrower_name(scenario["borrower_id"]),
+        autonomy_level=request.autonomy_level,
+        pdf_path=scenario["pdf_path"],
+        started_at=datetime.utcnow(),
+        status="running",
+    )
+    db.add(pending_run)
+    await db.commit()
+
     background_tasks.add_task(_execute_run, run_id, request.scenario_id, request.autonomy_level)
 
     return {"run_id": run_id, "status": "started", "scenario_id": request.scenario_id}
@@ -174,21 +243,52 @@ async def get_run(run_id: str, db: AsyncSession = Depends(get_db)):
     )
     audit = audit_result.scalars().all()
 
-    return {
+    payload = {
         **run.to_dict(),
         "tool_call_events": [t.to_dict() for t in tools],
         "audit_log_entries": [a.to_dict() for a in audit],
+    }
+    pipeline_result = payload.get("pipeline_result") or {}
+    pipeline_result = pipeline_result if isinstance(pipeline_result, dict) else {}
+    stored_pipeline = payload.get("pipeline_result")
+    stored_pipeline = stored_pipeline if isinstance(stored_pipeline, dict) else {}
+    h1_evidence = []
+    h2_evidence = []
+    if payload.get("outcome_correct") and payload.get("process_error_detected"):
+        h1_evidence = [{
+            "run_id": payload.get("run_id"),
+            "scenario_id": payload.get("scenario_id"),
+            "borrower_id": payload.get("borrower_id"),
+            "borrower_name": payload.get("borrower_name"),
+            "autonomy_level": payload.get("autonomy_level"),
+            "clause_coverage_score": payload.get("clause_coverage_score"),
+            "final_verdict": payload.get("final_verdict"),
+        }]
+    if payload.get("autonomy_level") in (1, 2, 3):
+        h2_evidence = [{
+            "autonomy_level": payload.get("autonomy_level"),
+            "process_error_detected": payload.get("process_error_detected"),
+            "clause_coverage_score": payload.get("clause_coverage_score"),
+        }]
+    return {
+        **payload,
+        "clauseCoverage": payload.get("clause_coverage_score"),
+        "trajectory": pipeline_result.get("trajectory_details"),
+        "verdict": payload.get("final_verdict"),
+        "h1Evidence": h1_evidence,
+        "h2Evidence": h2_evidence,
+        "pdfScenario": pipeline_result.get("pdfScenario") or stored_pipeline.get("pdfScenario"),
+        "scenario_inputs": pipeline_result.get("scenario_inputs") or stored_pipeline.get("scenario_inputs"),
+        "tool_accuracy_details": pipeline_result.get("tool_accuracy_details") or stored_pipeline.get("tool_accuracy_details", []),
+        "clause_coverage_details": pipeline_result.get("clause_coverage_details") or stored_pipeline.get("clause_coverage_details"),
+        "research_signals": pipeline_result.get("research_signals") or stored_pipeline.get("research_signals"),
     }
 
 
 @router.get("/scenarios")
 async def list_scenarios():
     """List all available test scenarios."""
-    if not GROUND_TRUTH_PATH.exists():
-        raise HTTPException(status_code=500, detail="ground_truth.json not found")
-    with open(GROUND_TRUTH_PATH) as f:
-        data = json.load(f)
-    return {"scenarios": data["scenarios"]}
+    return {"scenarios": list_pdf_scenarios()}
 
 
 @router.post("/multi-agent")

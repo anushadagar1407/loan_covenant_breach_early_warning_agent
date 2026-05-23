@@ -7,6 +7,7 @@ for the covenant check — it must capture which steps were completed.
 
 import uuid
 from datetime import datetime, timezone
+import json
 
 
 def generate_report(
@@ -45,6 +46,25 @@ def generate_report(
     """
     report_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
+
+    def _coerce_dict(value, fallback=None):
+        if fallback is None:
+            fallback = {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, dict) else fallback
+            except Exception:
+                return fallback
+        return fallback
+
+    extraction_result = _coerce_dict(extraction_result)
+    covenant_result = _coerce_dict(covenant_result)
+    adjustment_result = _coerce_dict(adjustment_result)
+    grace_period_result = _coerce_dict(grace_period_result)
+    breach_result = _coerce_dict(breach_result, {"verdict": str(breach_result) if breach_result is not None else "unknown"})
 
     verdict = breach_result.get("verdict", "unknown")
     severity = breach_result.get("breach_severity_score", 0.0)

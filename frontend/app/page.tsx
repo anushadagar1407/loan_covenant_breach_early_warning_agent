@@ -315,13 +315,19 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
   // Load scenarios when modal opens
   useEffect(() => {
     fetch(`${BASE}/api/scenarios`, { cache: "no-store" })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error(`Server returned ${r.status}`)
+        return r.json()
+      })
       .then(data => {
         const list = data.scenarios || [];
         setScenarios(list);
         if (list.length > 0) setScenarioId(list[0].scenario_id);
       })
-      .catch(e => setError(`Could not load scenarios: ${e.message}`));
+      .catch(e => {
+        console.error("Could not load scenarios", e);
+        setError(`Could not load scenarios: ${e.message}`);
+      });
   }, []);
 
   // Poll /api/runs/{run_id} until the row appears in the DB (= agent completed)
@@ -344,12 +350,27 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
         if (r.ok) {
           const data = await r.json();
           setRunDetail(data);
+          if (data.status === "failed") {
+            setError(data.error_message || "Run failed.");
+            setPhase("error");
+            return;
+          }
+          if (data.status === "running" || data.status === "started") {
+            setTimeout(poll, 2000);
+            return;
+          }
           setPhase("done");
           return;
         }
-        // 404 means agent is still running — keep polling
-      } catch {
-        // network blip — keep polling
+        const body = await r.text();
+        console.error("Run poll error", r.status, body);
+        if (r.status >= 500) {
+          setError(`Backend run detail failed (${r.status}). ${body}`);
+          setPhase("error");
+          return;
+        }
+      } catch (err) {
+        console.error("Run poll network error", err);
       }
       setTimeout(poll, 2000);
     };
@@ -415,12 +436,12 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
                 {scenarios.length === 0 && <option>Loading scenarios…</option>}
                 {scenarios.map(s => (
                   <option key={s.scenario_id} value={s.scenario_id}>
-                    {s.scenario_id} — {s.borrower_id} (expects: {s.expected_verdict})
+                    {s.scenario_id} — {s.borrower_name} ({s.pdf_filename}, expects: {s.expected_verdict})
                   </option>
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                💡 For the thesis H1 demo, pick SCEN-001 at L3 (autonomous).
+                Select a PDF-derived scenario. Inputs are parsed from the report, not hardcoded.
               </p>
             </div>
 
@@ -476,8 +497,7 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
             <p className="font-bold mb-2">Agent is running…</p>
             <p className="text-xs text-gray-500 font-mono mb-3">run_id: {runId?.slice(0, 8)}…</p>
             <p className="text-xs text-gray-400 max-w-sm mx-auto">
-              Ollama is processing the PDF and executing the tool chain. Expect <strong>30–120 seconds</strong> on CPU.
-              Results will appear here when ready.
+              The workflow is processing the PDF and executing the tool chain. Results will appear here when ready.
             </p>
             <button
               onClick={onClose}
@@ -527,6 +547,40 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
                 </span>
               </div>
             </div>
+            {runDetail.scenario_inputs && (
+              <div className="bg-gray-800 rounded p-3 mb-4">
+                <div className="section-label mb-2">Inputs Used</div>
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                  {JSON.stringify(runDetail.scenario_inputs, null, 2)}
+                </pre>
+              </div>
+            )}
+            {runDetail.pdfScenario?.input_summary && (
+              <div className="bg-gray-800 rounded p-3 mb-4">
+                <div className="section-label mb-2">PDF Inputs</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {Object.entries(runDetail.pdfScenario.input_summary).map(([k, v]) => (
+                    <div key={k} className="bg-gray-900 rounded p-2">
+                      <div className="text-gray-500 uppercase">{k.replace(/_/g, " ")}</div>
+                      <div className="font-mono mt-1">{typeof v === "object" ? JSON.stringify(v) : String(v)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {runDetail.tool_accuracy_details?.length ? (
+              <div className="bg-gray-800 rounded p-3 mb-4">
+                <div className="section-label mb-2">Tool Scores</div>
+                <div className="space-y-2">
+                  {runDetail.tool_accuracy_details.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs">
+                      <span className="font-mono">{item.tool_name}</span>
+                      <span>{(item.accuracy_score * 100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2">
               <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
                 Close
