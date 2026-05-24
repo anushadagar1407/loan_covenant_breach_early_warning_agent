@@ -811,8 +811,129 @@ tr:hover td {
   padding: 8px 0;
 }
 
+.evidence-matrix {
+  display: grid;
+  gap: 12px;
+}
+
+.evidence-card {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.85fr);
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(11, 18, 32, 0.68);
+}
+
+.evidence-id {
+  color: var(--accent-strong);
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.evidence-card h3 {
+  margin: 0 0 5px;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.evidence-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.story-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 10px;
+  counter-reset: step;
+}
+
+.timeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(11, 18, 32, 0.64);
+}
+
+.timeline-step::before {
+  counter-increment: step;
+  content: counter(step);
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(47, 125, 225, 0.16);
+  color: var(--accent-strong);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeline-step strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.timeline-step span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.survey-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.range-row {
+  display: grid;
+  gap: 8px;
+}
+
+.range-row input[type="range"] {
+  width: 100%;
+}
+
+.score-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 26px;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  background: rgba(47, 125, 225, 0.12);
+  color: var(--accent-strong);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 @media (max-width: 1100px) {
   .dashboard-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-card,
+  .story-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -892,5 +1013,9 @@ tr:hover td {
   .audit-row {
     grid-template-columns: 1fr;
     gap: 3px;
+  }
+
+  .survey-grid {
+    grid-template-columns: 1fr;
   }
 }

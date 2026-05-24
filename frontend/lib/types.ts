@@ -142,3 +142,24 @@ export interface RunDetail extends AgentRun {
   process_error_detected?: boolean;
   duration_seconds?: number | null;
 }
+
+export interface TrustResponsePayload {
+  run_id: string;
+  stakeholder_group: 'technical' | 'non_technical' | 'risk_compliance' | 'business';
+  transparency_condition: 'outcome_only' | 'transparent';
+  trust_score: number;
+  auditability_score?: number;
+  reliability_score?: number;
+  explanation_sufficiency_score?: number;
+  comments?: string;
+}
+
+export interface TrustAnalysis {
+  response_count: number;
+  h3_status?: string;
+  h4_status?: string;
+  message?: string;
+  transparency_trust_delta?: number | null;
+  by_condition?: Record<string, { count: number; avg_trust_score: number | null }>;
+  by_stakeholder_group?: Record<string, { count: number; avg_trust_score: number | null }>;
+}

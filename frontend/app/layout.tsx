@@ -4,8 +4,10 @@ import './globals.css'
 
 const navItems = [
   { href: '/', label: 'Dashboard', code: 'DB' },
+  { href: '/defense', label: 'Defense Mode', code: 'TH' },
   { href: '/runs', label: 'Agent Runs', code: 'AR' },
   { href: '/registry', label: 'Registry', code: 'RG' },
+  { href: '/trust', label: 'Trust Study', code: 'TS' },
 ]
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
