@@ -130,6 +130,14 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
               {run.scenario_id} · Autonomy L{run.autonomy_level} ·{' '}
               {run.started_at ? new Date(run.started_at).toLocaleString() : '—'}
             </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <span className={`badge ${run.ground_truth_fallback_used ? 'badge-warn' : 'badge-pass'}`}>
+                {run.data_source ?? 'unknown source'}
+              </span>
+              <span className={`badge ${run.transparency_artifacts_present ? 'badge-pass' : 'badge-warn'}`}>
+                {run.transparency_artifacts_present ? 'transparent trace' : 'trace incomplete'}
+              </span>
+            </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{

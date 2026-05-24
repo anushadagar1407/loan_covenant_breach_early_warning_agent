@@ -22,9 +22,18 @@ from agent.tools.report_generator import generate_report
 
 PDFS_PATH = Path(__file__).parent.parent / "data" / "synthetic_pdfs"
 BORROWER_PROFILES_PATH = Path(__file__).parent.parent / "data" / "borrower_profiles.json"
-PDF_PATTERN = re.compile(
-    r"^(?P<borrower_id>[A-Z0-9-]+)_(?P<year>\d{4})_(?P<quarter>Q[1-4])_Financial_Report\.pdf$"
+PDF_PATTERNS = (
+    re.compile(
+        r"^(?P<borrower_id>[A-Za-z0-9-]+)_(?P<year>\d{4})_(?P<quarter>Q[1-4])_Financial_Report\.pdf$"
+    ),
+    re.compile(
+        r"^(?P<borrower_id>[A-Za-z0-9_-]+)_(?P<quarter>Q[1-4])_(?P<year>\d{4})(?:_[A-Za-z0-9-]+)?\.pdf$"
+    ),
 )
+
+BORROWER_ALIASES = {
+    "TESLA": "TSLA",
+}
 
 
 def _load_borrowers() -> dict[str, dict[str, Any]]:
@@ -38,10 +47,14 @@ def _load_borrowers() -> dict[str, dict[str, Any]]:
 
 
 def _parse_pdf_metadata(pdf_path: Path) -> dict[str, Any] | None:
-    match = PDF_PATTERN.match(pdf_path.name)
-    if not match:
-        return None
-    return match.groupdict()
+    for pattern in PDF_PATTERNS:
+        match = pattern.match(pdf_path.name)
+        if match:
+            metadata = match.groupdict()
+            borrower_id = metadata["borrower_id"].upper()
+            metadata["borrower_id"] = BORROWER_ALIASES.get(borrower_id, borrower_id)
+            return metadata
+    return None
 
 
 def build_pdf_scenario(pdf_path: Path) -> dict[str, Any]:
@@ -52,6 +65,11 @@ def build_pdf_scenario(pdf_path: Path) -> dict[str, Any]:
     borrower_id = metadata["borrower_id"]
     borrowers = _load_borrowers()
     borrower = borrowers.get(borrower_id, {})
+    if not borrower:
+        return {
+            "error": f"Borrower profile not found for {borrower_id}",
+            "pdf_path": str(pdf_path),
+        }
     scenario_id = pdf_path.stem
 
     extracted = extract_financial_metrics(str(pdf_path), borrower_id)
@@ -76,6 +94,8 @@ def build_pdf_scenario(pdf_path: Path) -> dict[str, Any]:
         breach_result,
     )
 
+    expected_verdict = breach_result.get("verdict", "unknown")
+
     return {
         "scenario_id": scenario_id,
         "pdf_filename": pdf_path.name,
@@ -84,7 +104,10 @@ def build_pdf_scenario(pdf_path: Path) -> dict[str, Any]:
         "borrower_name": borrower.get("name", borrower_id),
         "quarter": metadata["quarter"],
         "year": int(metadata["year"]),
-        "expected_verdict": breach_result.get("verdict", "unknown"),
+        "expected_verdict": expected_verdict,
+        "correct_verdict": expected_verdict,
+        "data_source": extracted.get("source", "unknown"),
+        "ground_truth_fallback_used": extracted.get("source") == "ground_truth_fallback",
         "raw_financials": extracted,
         "covenants": covenants.get("covenants", {}),
         "adjustments": adjustments,

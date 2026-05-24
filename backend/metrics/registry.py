@@ -45,6 +45,8 @@ async def get_registry_summary(session: AsyncSession) -> dict:
     avg_trajectory = sum(trajectories) / total_runs
     compliance_rate = fully_compliant / total_runs
     h1_evidence_count = sum(1 for r in runs if r.outcome_correct and r.process_error_detected)
+    fallback_count = sum(1 for r in runs if getattr(r, "ground_truth_fallback_used", False))
+    transparent_count = sum(1 for r in runs if getattr(r, "transparency_artifacts_present", False))
 
     h1_validation = _to_py(validate_h1_gap_score(runs))
     h2_validation = _to_py(validate_h2_autonomy_errors(runs))
@@ -83,6 +85,24 @@ async def get_registry_summary(session: AsyncSession) -> dict:
         "level_stats": level_stats,
         "runs_by_autonomy_level": level_stats,
         "h1_evidence": {"count": h1_evidence_count},
+        "evidence_quality": {
+            "minimum_runs_met": total_runs >= 30,
+            "ground_truth_fallback_runs": fallback_count,
+            "ground_truth_fallback_rate": fallback_count / total_runs,
+            "transparency_artifact_rate": transparent_count / total_runs,
+            "note": (
+                "Treat hypothesis labels as exploratory until evaluation cohorts "
+                "exclude demo fallback runs and meet the planned sample size."
+            ),
+        },
+        "h3_validation": {
+            "status": "not_implemented",
+            "message": "No stakeholder trust responses are stored yet.",
+        },
+        "h4_validation": {
+            "status": "not_implemented",
+            "message": "No outcome-only versus transparent-view trust experiment is stored yet.",
+        },
     }
 
 async def get_h1_evidence(session: AsyncSession) -> dict:
@@ -198,4 +218,27 @@ async def get_baseline_comparison(session: AsyncSession, baseline_type: str) -> 
         "baseline_accuracy_mean": accuracy(baseline_runs),
         "agent_coverage_mean": avg_coverage(agent_runs),
         "baseline_coverage_mean": avg_coverage(baseline_runs),
+    }
+
+
+async def get_metrics_over_time(session: AsyncSession) -> dict:
+    """Return run-level metric history for dashboard trend charts."""
+    result = await session.execute(select(AgentRun).order_by(AgentRun.started_at))
+    runs = result.scalars().all()
+    return {
+        "data": [
+            {
+                "run_id": r.run_id,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "autonomy_level": r.autonomy_level,
+                "outcome_correct": r.outcome_correct,
+                "process_error_detected": r.process_error_detected,
+                "clause_coverage_score": r.clause_coverage_score,
+                "trajectory_score": r.trajectory_score,
+                "tool_call_accuracy_score": r.tool_call_accuracy_score,
+                "ground_truth_fallback_used": getattr(r, "ground_truth_fallback_used", False),
+                "experiment_condition": getattr(r, "experiment_condition", "standard"),
+            }
+            for r in runs
+        ]
     }

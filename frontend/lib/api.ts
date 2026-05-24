@@ -33,6 +33,19 @@ export const api = {
   getH2Evidence: (): Promise<any> =>
     fetchJSON('/api/registry/h2-evidence'),
 
+  getTrustAnalysis: (): Promise<any> =>
+    fetchJSON('/api/trust/analysis'),
+
+  submitTrustResponse: (payload: Record<string, any>): Promise<any> =>
+    fetch(`${BASE}/api/trust/responses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(async r => {
+      if (!r.ok) throw new Error(`API error ${r.status}: /api/trust/responses`)
+      return r.json()
+    }),
+
   startRun: (scenarioId: string, autonomyLevel: number): Promise<{ run_id: string; status: string }> =>
     fetch(`${BASE}/api/runs`, {
       method: 'POST',

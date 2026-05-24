@@ -14,10 +14,12 @@ This project is designed to support four research claims:
 The system therefore does not stop at a final verdict. Each run stores:
 
 - PDF-derived financial inputs
+- data-source provenance (`pdf_extraction`, `pdf_extraction_unverified`, or `ground_truth_fallback`)
 - tool call trace
 - audit trail
 - clause coverage details
 - per-tool accuracy breakdown
+- evidence-quality flags
 - research signal flags
 
 ## Current architecture
@@ -30,6 +32,11 @@ There are three run modes:
 
 Scenarios are not loaded from hardcoded UI constants. They are built dynamically from the PDFs in `backend/data/synthetic_pdfs/` by `backend/agent/scenario_catalog.py`.
 
+The scenario catalog supports both generated names such as
+`CORP-001_2026_Q1_Financial_Report.pdf` and existing checked-in names such as
+`CORP-001_Q3_2024.pdf`. PDFs without a matching borrower profile are excluded
+from the runnable scenario list.
+
 ## Data source strategy
 
 ### Primary source in this repo
@@ -39,6 +46,17 @@ The primary source is the local PDF pipeline:
 - input reports are stored in `backend/data/synthetic_pdfs/`
 - scenario metadata is derived from the PDF filename and parsed PDF contents
 - covenant and borrower policy data comes from `backend/data/borrower_profiles.json`
+- extraction provenance is saved with every run so thesis analysis can separate clean PDF parses from unverified parser results or demo fallback data
+
+Ground-truth fallback is disabled by default for evaluation integrity. To use
+canonical generated values for demos when PDF parsing is incomplete, set:
+
+```bash
+ALLOW_GROUND_TRUTH_FALLBACK=1
+```
+
+When fallback is enabled, runs are still tagged with `ground_truth_fallback_used`
+so they can be excluded from academic evaluation cohorts.
 
 ### Why not live web extraction by default
 
@@ -117,7 +135,7 @@ Start a run:
 ```bash
 curl -X POST http://localhost:8000/api/runs \
   -H "Content-Type: application/json" \
-  -d '{"scenario_id":"CORP-001_2024_Q1_Financial_Report","autonomy_level":1}'
+  -d '{"scenario_id":"CORP-001_Q3_2024","autonomy_level":1}'
 ```
 
 Fetch the run:
@@ -130,6 +148,28 @@ List scenarios:
 
 ```bash
 curl http://localhost:8000/api/scenarios
+```
+
+Submit a pilot trust-study response for H3/H4:
+
+```bash
+curl -X POST http://localhost:8000/api/trust/responses \
+  -H "Content-Type: application/json" \
+  -d '{
+    "run_id":"<run_id>",
+    "stakeholder_group":"risk_compliance",
+    "transparency_condition":"transparent",
+    "trust_score":6,
+    "auditability_score":6,
+    "reliability_score":5,
+    "explanation_sufficiency_score":6
+  }'
+```
+
+Fetch trust-study analysis:
+
+```bash
+curl http://localhost:8000/api/trust/analysis
 ```
 
 ## Agent execution flow
@@ -176,8 +216,11 @@ Guardrails:
 - `backend/api/routes/agent_routes.py`
   Run creation, run detail retrieval, scenario list endpoints.
 
+- `backend/api/routes/trust_routes.py`
+  Pilot trust-study response capture and H3/H4 directional analysis.
+
 - `backend/metrics/registry.py`
-  Aggregated H1/H2-facing summary metrics for dashboards.
+  Aggregated H1/H2-facing summary metrics, evidence-quality warnings, and metric history.
 
 ### Frontend
 
@@ -188,7 +231,7 @@ Guardrails:
   Run list.
 
 - `frontend/app/runs/[id]/page.tsx`
-  Trace view, metric breakdown, audit trail, and PDF-derived inputs.
+  Trace view, metric breakdown, audit trail, PDF-derived inputs, and data-source provenance.
 
 ## Experimental interpretation
 
@@ -218,9 +261,24 @@ Each run should support your thesis analysis through:
 - `audit_log_entries`
 - `scenario_inputs`
 - `pdfScenario`
+- `data_source`
+- `ground_truth_fallback_used`
+- `experiment_condition`
+- `transparency_artifacts_present`
 - `tool_accuracy_details`
 - `clause_coverage_details`
 - `research_signals`
+
+### Evidence-quality interpretation
+
+The dashboard now distinguishes exploratory evidence from stronger evaluation
+evidence. H1/H2 labels should be treated as exploratory until enough runs exist
+and demo fallback runs are excluded from the analysis cohort.
+
+H3 and H4 are now instrumented but not automatically proven. They require
+stored stakeholder trust responses under outcome-only and transparent
+conditions. Until those responses exist, the registry reports H3/H4 as not yet
+evaluated.
 
 ## Troubleshooting
 

@@ -6,6 +6,7 @@ where adjustment items like restructuring charges are buried in prose.
 """
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -16,6 +17,16 @@ except ImportError:
     PDF_AVAILABLE = False
 
 GROUND_TRUTH_PATH = Path(__file__).parent.parent.parent / "data" / "ground_truth.json"
+PDF_NAME_PATTERNS = (
+    re.compile(
+        r"^(?P<borrower_id>[A-Z0-9-]+)_(?P<year>\d{4})_(?P<quarter>Q[1-4])_Financial_Report\.pdf$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?P<borrower_id>[A-Z0-9_-]+)_(?P<quarter>Q[1-4])_(?P<year>\d{4})(?:_[A-Z0-9-]+)?\.pdf$",
+        re.IGNORECASE,
+    ),
+)
 
 
 def extract_financial_metrics(pdf_path: str, borrower_id: str) -> dict:
@@ -47,6 +58,7 @@ def extract_financial_metrics(pdf_path: str, borrower_id: str) -> dict:
             return _error_result(f"Failed to open PDF: {e}")
 
         parsed = _parse_financial_text(full_text)
+        parsed["fallback_available"] = False
         lower_text = full_text.lower()
         adjustment_signal = any(
             phrase in lower_text
@@ -57,9 +69,8 @@ def extract_financial_metrics(pdf_path: str, borrower_id: str) -> dict:
             )
         )
 
-        # The synthetic PDFs in this project are canonical. If text extraction
-        # misses any core metric or the notes section contains adjustment clues,
-        # fall back to the generated ground truth rather than persisting zeroes.
+        # Fallback is provenance-tagged and disabled by default for evaluation runs.
+        # Enable ALLOW_GROUND_TRUTH_FALLBACK=1 for demo recovery from parser misses.
         main_fields = (
             "total_debt",
             "reported_ebitda",
@@ -72,7 +83,14 @@ def extract_financial_metrics(pdf_path: str, borrower_id: str) -> dict:
         if parsed.get("extraction_confidence", 0.0) < 1.0 or adjustment_signal or all_core_values_zero:
             fallback = _load_ground_truth_fallback(path, full_text, borrower_id)
             if fallback is not None:
-                return fallback
+                parsed["fallback_available"] = True
+                parsed["fallback_reason"] = _fallback_reason(parsed, adjustment_signal, all_core_values_zero)
+                if os.getenv("ALLOW_GROUND_TRUTH_FALLBACK", "0") == "1":
+                    fallback["fallback_reason"] = parsed["fallback_reason"]
+                    return fallback
+                parsed["source"] = "pdf_extraction_unverified"
+                parsed["fallback_reason"] = _fallback_reason(parsed, adjustment_signal, all_core_values_zero)
+                return parsed
 
         return parsed
 
@@ -163,8 +181,7 @@ def _extract_adjustment(text: str, keywords: list[str]) -> float:
             raw = m.group(1).replace(",", "")
             try:
                 val = float(raw)
-                # Normalize: if looks like millions already (< 100000), keep; else treat as raw
-                return val if val > 100_000 else val * 1_000_000
+                return val
             except ValueError:
                 continue
 
@@ -208,15 +225,17 @@ def _load_ground_truth_fallback(path: Path, full_text: str, borrower_id: str) ->
     except Exception:
         return None
 
-    match = re.match(
-        r"^(?P<borrower_id>[A-Z0-9-]+)_(?P<year>\d{4})_(?P<quarter>Q[1-4])_Financial_Report\.pdf$",
-        path.name,
-    )
-    if not match:
+    metadata = None
+    for pattern in PDF_NAME_PATTERNS:
+        match = pattern.match(path.name)
+        if match:
+            metadata = match.groupdict()
+            break
+    if not metadata:
         return None
 
-    pdf_year = int(match.group("year"))
-    pdf_quarter = match.group("quarter")
+    pdf_year = int(metadata["year"])
+    pdf_quarter = metadata["quarter"].upper()
 
     scenario = next(
         (
@@ -257,3 +276,14 @@ def _load_ground_truth_fallback(path: Path, full_text: str, borrower_id: str) ->
         "raw_text_snippet": full_text[:500],
         "source": "ground_truth_fallback",
     }
+
+
+def _fallback_reason(parsed: dict, adjustment_signal: bool, all_core_values_zero: bool) -> str:
+    reasons = []
+    if parsed.get("extraction_confidence", 0.0) < 1.0:
+        reasons.append("incomplete_pdf_parse")
+    if adjustment_signal:
+        reasons.append("adjustment_language_detected")
+    if all_core_values_zero:
+        reasons.append("all_core_values_zero")
+    return ",".join(reasons) if reasons else "none"

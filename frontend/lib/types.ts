@@ -58,6 +58,15 @@ export interface RegistrySummary {
   level_stats: any;
   runs_by_autonomy_level?: any;
   h1_evidence?: { count: number };
+  evidence_quality?: {
+    minimum_runs_met: boolean;
+    ground_truth_fallback_runs: number;
+    ground_truth_fallback_rate: number;
+    transparency_artifact_rate: number;
+    note: string;
+  };
+  h3_validation?: { status: string; message: string };
+  h4_validation?: { status: string; message: string };
 }
 
 export interface Scenario {
@@ -78,6 +87,8 @@ export interface Scenario {
   report: Record<string, any>;
   input_summary: Record<string, any>;
   reasoning: string;
+  data_source?: string;
+  ground_truth_fallback_used?: boolean;
 }
 
 export interface AgentRun {
@@ -102,6 +113,10 @@ export interface AgentRun {
   clause_coverage_score?: number;
   clause_coverage_details?: any;
   process_error_detected?: boolean;
+  data_source?: string;
+  ground_truth_fallback_used?: boolean;
+  experiment_condition?: string;
+  transparency_artifacts_present?: boolean;
   pdfScenario?: Scenario;
   scenario_inputs?: Record<string, any> | null;
 }
