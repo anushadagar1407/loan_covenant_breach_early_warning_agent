@@ -83,6 +83,8 @@ when the Codespace is created. If you created the Codespace before this file was
 added, rebuild the Codespace container or run the manual install once:
 
 ```bash
+sudo apt-get update
+sudo apt-get install -y curl ca-certificates zstd
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
