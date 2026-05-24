@@ -96,7 +96,7 @@ export default function RegistryPage() {
           Deutsche Bank — Covenant Intelligence Platform
         </h1>
         <div style={{ fontSize: 13, color: '#6B7280' }}>
-          Centralized process-level transparency and auditability for deployed AI agents · Supports H4
+          Centralized process-level transparency and auditability for deployed AI agents · H4-ready instrumentation
         </div>
       </div>
 
@@ -125,6 +125,20 @@ export default function RegistryPage() {
 
         {/* 5 Metrics Framework */}
         <div className="card" style={{ marginBottom: 20 }}>
+          {summary?.evidence_quality && (
+            <div style={{
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 4,
+              padding: '10px 12px',
+              marginBottom: 16,
+              color: '#FBBF24',
+              fontSize: 12,
+            }}>
+              Evidence quality: {summary.evidence_quality.minimum_runs_met ? 'sample threshold met' : 'exploratory sample'} ·
+              fallback runs {summary.evidence_quality.ground_truth_fallback_runs} · H3/H4 require trust responses.
+            </div>
+          )}
           <div className="section-label" style={{ marginBottom: 20 }}>
             The 5 Thesis Metrics — Process-Level Evaluation Framework
           </div>

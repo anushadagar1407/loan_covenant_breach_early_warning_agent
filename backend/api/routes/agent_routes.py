@@ -28,6 +28,7 @@ BORROWER_PROFILES_PATH = Path(__file__).parent.parent.parent / "data" / "borrowe
 class RunRequest(BaseModel):
     scenario_id: str
     autonomy_level: int = 1
+    experiment_condition: str = "standard"
 
 
 class MultiAgentRequest(BaseModel):
@@ -49,7 +50,7 @@ def _load_borrower_name(borrower_id: str) -> str:
     return borrower.get("name", borrower_id) if borrower else borrower_id
 
 
-async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, pdf_path: str, status: str, run_result: dict | None = None, error_message: str | None = None):
+async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, pdf_path: str, status: str, run_result: dict | None = None, error_message: str | None = None, experiment_condition: str = "standard"):
     run = await db.execute(select(AgentRun).where(AgentRun.run_id == run_id))
     run = run.scalar_one_or_none()
     if not run:
@@ -71,6 +72,9 @@ async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, 
     run.autonomy_level = autonomy_level
     run.pdf_path = pdf_path
     run.status = status
+    run.experiment_condition = experiment_condition
+    run.data_source = scenario.get("data_source")
+    run.ground_truth_fallback_used = bool(scenario.get("ground_truth_fallback_used", False))
     if run_result:
         run.started_at = datetime.fromisoformat(run_result["started_at"])
         run.completed_at = datetime.fromisoformat(run_result["completed_at"]) if run_result.get("completed_at") else None
@@ -82,6 +86,9 @@ async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, 
         run.tool_call_accuracy_score = run_result.get("tool_call_accuracy_score")
         run.clause_coverage_score = run_result.get("clause_coverage_score")
         run.process_error_detected = run_result.get("process_error_detected", False)
+        run.data_source = run_result.get("data_source", run.data_source)
+        run.ground_truth_fallback_used = run_result.get("ground_truth_fallback_used", run.ground_truth_fallback_used)
+        run.transparency_artifacts_present = run_result.get("transparency_artifacts_present", False)
         run.adjustment_clause_checked = run_result.get("adjustment_clause_checked", False)
         run.grace_period_clause_checked = run_result.get("grace_period_clause_checked", False)
         run.adjustment_changes_verdict = run_result.get("adjustment_changes_verdict", False)
@@ -93,7 +100,7 @@ async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, 
     return run
 
 
-async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int):
+async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int, experiment_condition: str = "standard"):
     """Background task: runs agent and persists results."""
     from database.db import AsyncSessionLocal
     from agent.agent_runner import run_agent_with_metrics
@@ -122,6 +129,7 @@ async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int):
                 pdf_path=scenario["pdf_path"],
                 status=run_result.get("status", "completed"),
                 run_result=run_result,
+                experiment_condition=experiment_condition,
             )
             db.add(run)
 
@@ -135,6 +143,7 @@ async def _execute_run(run_id: str, scenario_id: str, autonomy_level: int):
                 pdf_path=scenario["pdf_path"],
                 status="failed",
                 error_message=str(exc),
+                experiment_condition=experiment_condition,
             )
             db.add(run)
             await db.commit()
@@ -198,10 +207,19 @@ async def start_run(
         started_at=datetime.utcnow(),
         status="running",
     )
+    pending_run.experiment_condition = request.experiment_condition
+    pending_run.data_source = scenario.get("data_source")
+    pending_run.ground_truth_fallback_used = bool(scenario.get("ground_truth_fallback_used", False))
     db.add(pending_run)
     await db.commit()
 
-    background_tasks.add_task(_execute_run, run_id, request.scenario_id, request.autonomy_level)
+    background_tasks.add_task(
+        _execute_run,
+        run_id,
+        request.scenario_id,
+        request.autonomy_level,
+        request.experiment_condition,
+    )
 
     return {"run_id": run_id, "status": "started", "scenario_id": request.scenario_id}
 

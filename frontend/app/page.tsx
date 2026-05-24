@@ -137,8 +137,17 @@ export default function Dashboard() {
             <div className="bg-gray-900 p-4 rounded">
               <p className="font-bold text-lg mb-2">{h1.conclusion}</p>
               <p className="text-sm">
-                {h1.significant_at_0_05 ? "✓ H1 SUPPORTED" : "✗ H1 NOT SUPPORTED"}
+                {summary.evidence_quality?.minimum_runs_met
+                  ? h1.significant_at_0_05
+                    ? "H1 evidence detected"
+                    : "H1 not supported in current data"
+                  : "Exploratory: collect more runs"}
               </p>
+              {summary.evidence_quality && (
+                <p className="text-xs text-gray-400 mt-2">
+                  Fallback runs: {summary.evidence_quality.ground_truth_fallback_runs}
+                </p>
+              )}
             </div>
           </div>
         </div>

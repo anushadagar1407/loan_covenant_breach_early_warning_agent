@@ -7,6 +7,7 @@ Uses aiosqlite driver for async SQLite access.
 
 import os
 from pathlib import Path
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from database.models import Base
 
@@ -34,7 +35,23 @@ async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_agent_run_columns(conn)
     print(f"Database initialized at {DB_PATH}")
+
+
+async def _ensure_agent_run_columns(conn):
+    """SQLite-friendly migration for research metadata columns."""
+    result = await conn.execute(text("PRAGMA table_info(agent_runs)"))
+    existing = {row[1] for row in result.fetchall()}
+    columns = {
+        "data_source": "VARCHAR(50)",
+        "ground_truth_fallback_used": "BOOLEAN DEFAULT 0",
+        "experiment_condition": "VARCHAR(50) DEFAULT 'standard'",
+        "transparency_artifacts_present": "BOOLEAN DEFAULT 0",
+    }
+    for name, ddl in columns.items():
+        if name not in existing:
+            await conn.execute(text(f"ALTER TABLE agent_runs ADD COLUMN {name} {ddl}"))
 
 
 async def get_db():

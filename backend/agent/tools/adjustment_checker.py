@@ -102,27 +102,28 @@ def check_accounting_adjustments(borrower_id: str, raw_financials: dict) -> dict
             f"Adjusted EBITDA: EUR {adjusted_ebitda:,.0f}"
         )
 
+    # Values are in EUR millions throughout this prototype.
     # CORP-003 / similar: exceptional legal costs excluded from debt (up to EUR 2M)
     if legal_costs > 0 and "legal" in (borrower.get("adjustment_description") or "").lower():
-        cap = 2_000_000.0
+        cap = 2.0
         exclusion = min(legal_costs, cap)
         adjusted_debt = total_debt - exclusion
         adjustment_amount += exclusion
         notes_parts.append(
             f"Debt reduction: EUR {exclusion:,.0f} exceptional legal costs excluded "
-            f"(cap EUR 2,000,000). "
+            f"(cap EUR 2.0M). "
             f"Adjusted Debt: EUR {adjusted_debt:,.0f}"
         )
 
     # CORP-004 / similar: decommissioning EBITDA add-back (up to EUR 5M per Schedule 7)
     if decommissioning > 0 and "decommissioning" in (borrower.get("adjustment_description") or "").lower():
-        cap = 5_000_000.0
+        cap = 5.0
         add_back = min(decommissioning, cap)
         adjusted_ebitda = reported_ebitda + add_back
         adjustment_amount += add_back
         notes_parts.append(
             f"EBITDA add-back: EUR {add_back:,.0f} for decommissioning costs under Schedule 7 "
-            f"(capped at EUR 5,000,000). "
+            f"(capped at EUR 5.0M). "
             f"Adjusted EBITDA: EUR {adjusted_ebitda:,.0f}"
         )
 

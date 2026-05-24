@@ -43,6 +43,10 @@ class AgentRun(Base):
     tool_call_accuracy_score = Column(Float)
     clause_coverage_score = Column(Float)
     process_error_detected = Column(Boolean, default=False)
+    data_source = Column(String(50))
+    ground_truth_fallback_used = Column(Boolean, default=False)
+    experiment_condition = Column(String(50), default="standard")
+    transparency_artifacts_present = Column(Boolean, default=False)
 
     # Clause-level flags
     adjustment_clause_checked = Column(Boolean, default=False)
@@ -73,6 +77,10 @@ class AgentRun(Base):
             "tool_call_accuracy_score": self.tool_call_accuracy_score,
             "clause_coverage_score": self.clause_coverage_score,
             "process_error_detected": self.process_error_detected,
+            "data_source": self.data_source,
+            "ground_truth_fallback_used": self.ground_truth_fallback_used,
+            "experiment_condition": self.experiment_condition,
+            "transparency_artifacts_present": self.transparency_artifacts_present,
             "adjustment_clause_checked": self.adjustment_clause_checked,
             "grace_period_clause_checked": self.grace_period_clause_checked,
             "adjustment_changes_verdict": self.adjustment_changes_verdict,
@@ -125,4 +133,34 @@ class AuditLogEntry(Base):
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "event_type": self.event_type,
             "message": self.message,
+        }
+
+
+class TrustResponse(Base):
+    __tablename__ = "trust_responses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    response_id = Column(String(36), unique=True, nullable=False, index=True)
+    run_id = Column(String(36), ForeignKey("agent_runs.run_id"), nullable=False, index=True)
+    stakeholder_group = Column(String(50), nullable=False)
+    transparency_condition = Column(String(50), nullable=False)
+    trust_score = Column(Float, nullable=False)
+    auditability_score = Column(Float)
+    reliability_score = Column(Float)
+    explanation_sufficiency_score = Column(Float)
+    comments = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "response_id": self.response_id,
+            "run_id": self.run_id,
+            "stakeholder_group": self.stakeholder_group,
+            "transparency_condition": self.transparency_condition,
+            "trust_score": self.trust_score,
+            "auditability_score": self.auditability_score,
+            "reliability_score": self.reliability_score,
+            "explanation_sufficiency_score": self.explanation_sufficiency_score,
+            "comments": self.comments,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
