@@ -15,11 +15,11 @@ const VERDICT_BADGE: Record<string, string> = {
 function ScoreBar({ value, color = '#3B82F6' }: { value: number; color?: string }) {
   const pct = Math.round((value ?? 0) * 100)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
-      <div style={{ flex: 1, height: 4, background: '#1F2937', borderRadius: 2 }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
+      <div style={{ flex: 1, height: 5, background: 'rgba(101,113,135,0.25)', borderRadius: 999 }}>
+        <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: '100%', background: color, borderRadius: 999 }} />
       </div>
-      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color, minWidth: 28, textAlign: 'right' }}>{pct}%</span>
+      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
     </div>
   )
 }
@@ -48,116 +48,129 @@ export default function RunsPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>Agent Runs</h1>
-          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
-            Complete history of all covenant breach agent runs
+      <div className="page-header">
+        <div className="page-header-inner runs-header-row">
+          <div>
+            <h1 className="page-title">Agent Runs</h1>
+            <div className="page-subtitle">
+              Complete history of covenant breach agent runs, newest first.
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {[undefined, 1, 2, 3].map(lvl => (
-            <button key={String(lvl)} onClick={() => setFilter(lvl)} style={{
-              padding: '7px 14px',
-              background: filter === lvl ? '#003882' : 'transparent',
-              border: `1px solid ${filter === lvl ? '#0066CC' : '#1F2937'}`,
-              color: filter === lvl ? 'white' : '#9CA3AF',
-              borderRadius: 4, cursor: 'pointer',
-              fontFamily: 'var(--mono)', fontSize: 11,
-            }}>
-              {lvl === undefined ? 'ALL' : `L${lvl}`}
-            </button>
-          ))}
+          <div className="filter-row" aria-label="Autonomy filter">
+            {[undefined, 1, 2, 3].map(lvl => (
+              <button
+                key={String(lvl)}
+                onClick={() => setFilter(lvl)}
+                className={`button ${filter === lvl ? 'button-primary' : 'button-secondary'}`}
+                style={{ minHeight: 34, fontFamily: 'var(--mono)', fontSize: 11 }}
+              >
+                {lvl === undefined ? 'ALL' : `L${lvl}`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="page-content">
         {error && (
-          <div className="card" style={{ margin: '16px 0', padding: 14, border: '1px solid #FCA5A5', background: 'rgba(254,226,226,0.9)', color: '#B91C1C' }}>
-            <strong>Backend error:</strong> {error}
+          <div className="status-callout" style={{ marginBottom: 16, borderLeftColor: 'var(--danger)' }}>
+            <strong style={{ color: 'var(--danger)' }}>Backend error</strong>
+            <span>{error}</span>
           </div>
         )}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+
+        <div className="card table-card">
           {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#4B5563', fontFamily: 'var(--mono)', fontSize: 12 }}>
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--mono)', fontSize: 12 }}>
               LOADING...
             </div>
           ) : runs.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#4B5563', fontSize: 13 }}>
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
               No runs yet. Go to the Dashboard to launch an agent run.
             </div>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Run ID</th>
-                  <th>Scenario</th>
-                  <th>Borrower</th>
-                  <th>Auto. Level</th>
-                  <th>Verdict</th>
-                  <th>Outcome ✓</th>
-                  <th>Clause Coverage</th>
-                  <th>Trajectory</th>
-                  <th>Duration</th>
-                  <th>Process Error</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map(run => (
-                  <tr key={run.run_id} style={{ cursor: 'pointer' }}
-                    onClick={() => window.location.href = `/runs/${run.run_id}`}>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#6B7280' }}>
-                      {run.run_id.slice(0, 8)}
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{run.scenario_id}</td>
-                    <td style={{ fontSize: 12, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {run.borrower_name}
-                    </td>
-                    <td>
-                      <span className={`badge ${run.autonomy_level === 1 ? 'badge-pass' : run.autonomy_level === 2 ? 'badge-warn' : 'badge-danger'}`}>
-                        L{run.autonomy_level} {['CONSTRAINED', 'MODERATE', 'AUTONOMOUS'][run.autonomy_level - 1]}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`badge ${VERDICT_BADGE[run.final_verdict ?? 'unknown'] ?? 'badge-grey'}`}>
-                        {run.final_verdict?.toUpperCase().replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 14, textAlign: 'center' }}>
-                      {run.outcome_correct === null ? <span style={{ color: '#4B5563' }}>—</span>
-                        : run.outcome_correct
-                        ? <span style={{ color: '#10B981' }}>✓</span>
-                        : <span style={{ color: '#EF4444' }}>✗</span>}
-                    </td>
-                    <td>
-                      <ScoreBar value={run.clause_coverage_score ?? 0}
-                        color={(run.clause_coverage_score ?? 0) >= 1 ? '#10B981' : '#EF4444'} />
-                    </td>
-                    <td>
-                      <ScoreBar value={run.trajectory_score ?? 0} color="#3B82F6" />
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#9CA3AF' }}>
-                      {run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '—'}
-                    </td>
-                    <td>
-                      {run.process_error_detected ? (
-                        <span className="badge badge-danger">⚠ ERROR</span>
-                      ) : (
-                        <span className="badge badge-pass">CLEAN</span>
-                      )}
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <a href={`/runs/${run.run_id}`} style={{
-                        fontSize: 11, color: '#3B82F6', textDecoration: 'none', fontFamily: 'var(--mono)'
-                      }}>
-                        VIEW →
-                      </a>
-                    </td>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Run ID</th>
+                    <th>Scenario</th>
+                    <th>Borrower</th>
+                    <th>Autonomy</th>
+                    <th>Verdict</th>
+                    <th>Outcome</th>
+                    <th>Clause Coverage</th>
+                    <th>Trajectory</th>
+                    <th>Duration</th>
+                    <th>Process</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {runs.map(run => (
+                    <tr
+                      key={run.run_id}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => window.location.href = `/runs/${run.run_id}`}
+                    >
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                        {run.run_id.slice(0, 8)}
+                      </td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{run.scenario_id}</td>
+                      <td className="truncate-cell" style={{ fontSize: 12 }}>
+                        {run.borrower_name}
+                      </td>
+                      <td>
+                        <span className={`badge ${run.autonomy_level === 1 ? 'badge-pass' : run.autonomy_level === 2 ? 'badge-warn' : 'badge-danger'}`}>
+                          L{run.autonomy_level}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${VERDICT_BADGE[run.final_verdict ?? 'unknown'] ?? 'badge-grey'}`}>
+                          {(run.final_verdict ?? 'unknown').toUpperCase().replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'center' }}>
+                        {run.outcome_correct === null || run.outcome_correct === undefined ? (
+                          <span style={{ color: 'var(--text-muted)' }}>-</span>
+                        ) : run.outcome_correct ? (
+                          <span style={{ color: 'var(--pass)' }}>YES</span>
+                        ) : (
+                          <span style={{ color: 'var(--danger)' }}>NO</span>
+                        )}
+                      </td>
+                      <td>
+                        <ScoreBar
+                          value={run.clause_coverage_score ?? 0}
+                          color={(run.clause_coverage_score ?? 0) >= 1 ? 'var(--pass)' : 'var(--danger)'}
+                        />
+                      </td>
+                      <td>
+                        <ScoreBar value={run.trajectory_score ?? 0} color="var(--accent-strong)" />
+                      </td>
+                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
+                        {run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '-'}
+                      </td>
+                      <td>
+                        {run.process_error_detected ? (
+                          <span className="badge badge-danger">ERROR</span>
+                        ) : (
+                          <span className="badge badge-pass">CLEAN</span>
+                        )}
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <a
+                          href={`/runs/${run.run_id}`}
+                          style={{ fontSize: 11, color: 'var(--accent-strong)', textDecoration: 'none', fontFamily: 'var(--mono)' }}
+                        >
+                          VIEW
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

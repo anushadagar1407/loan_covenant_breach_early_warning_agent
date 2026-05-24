@@ -14,66 +14,70 @@ const EXPECTED_TOOLS = [
 ]
 
 const EVENT_COLORS: Record<string, string> = {
-  tool_called: '#3B82F6',
-  tool_completed: '#10B981',
-  agent_thinking: '#9CA3AF',
-  final_output: '#F59E0B',
+  tool_called: 'var(--accent-strong)',
+  tool_completed: 'var(--pass)',
+  agent_thinking: 'var(--text-secondary)',
+  final_output: 'var(--warn)',
 }
 
-function ToolNode({ toolDef, event, index }: {
+function ToolNode({ toolDef, event }: {
   toolDef: typeof EXPECTED_TOOLS[0]
   event: any
-  index: number
 }) {
-  const called = !!event
-  const hasError = event?.error
-  const color = hasError ? '#EF4444' : called ? '#10B981' : '#4B5563'
-  const bg = hasError ? 'rgba(239,68,68,0.1)' : called ? 'rgba(16,185,129,0.1)' : 'rgba(75,85,99,0.1)'
+  const called = Boolean(event)
+  const hasError = Boolean(event?.error)
+  const color = hasError ? 'var(--danger)' : called ? 'var(--pass)' : 'var(--text-muted)'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', flex: 1 }}>
-      {/* Connector line */}
-      {index > 0 && (
-        <div style={{
-          position: 'absolute', top: 20, right: '50%', left: '-50%',
-          height: 2, background: called ? '#1F2937' : '#1F2937',
-          zIndex: 0,
-        }} />
-      )}
-
-      {/* Node circle */}
+    <div className="tool-node" style={{ display: 'grid', justifyItems: 'center', gap: 8 }}>
       <div style={{
-        width: 40, height: 40, borderRadius: '50%',
-        background: bg, border: `2px solid ${color}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 16, zIndex: 1, position: 'relative',
-        boxShadow: called ? `0 0 12px ${color}40` : 'none',
+        width: 40,
+        height: 40,
+        borderRadius: '50%',
+        display: 'grid',
+        placeItems: 'center',
+        border: `2px solid ${color}`,
+        background: called ? 'rgba(33,185,129,0.1)' : 'rgba(101,113,135,0.1)',
+        color,
+        fontFamily: 'var(--mono)',
+        fontWeight: 600,
       }}>
-        {hasError ? '✗' : called ? '✓' : '○'}
+        {hasError ? '!' : called ? 'OK' : '-'}
       </div>
-
-      {/* Tool name */}
-      <div style={{ marginTop: 8, fontSize: 10, fontFamily: 'var(--mono)', color, textAlign: 'center', lineHeight: 1.3, maxWidth: 80 }}>
+      <div style={{
+        color,
+        fontFamily: 'var(--mono)',
+        fontSize: 10,
+        lineHeight: 1.3,
+        textAlign: 'center',
+        overflowWrap: 'anywhere',
+      }}>
         {toolDef.short}
-        {toolDef.critical && <div style={{ color: '#F59E0B', fontSize: 9 }}>CRITICAL</div>}
+        {toolDef.critical && <div style={{ color: 'var(--warn)', fontSize: 9 }}>CRITICAL</div>}
       </div>
-
-      {/* Latency */}
       {event?.latency_ms && (
-        <div style={{ fontSize: 9, color: '#4B5563', fontFamily: 'var(--mono)', marginTop: 3 }}>
+        <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)', fontSize: 9 }}>
           {Math.round(event.latency_ms)}ms
         </div>
       )}
-
-      {/* Score */}
       {event?.accuracy_score != null && (
         <div style={{
-          fontSize: 9, fontFamily: 'var(--mono)', marginTop: 2,
-          color: event.accuracy_score >= 0.8 ? '#10B981' : '#F59E0B',
+          color: event.accuracy_score >= 0.8 ? 'var(--pass)' : 'var(--warn)',
+          fontFamily: 'var(--mono)',
+          fontSize: 9,
         }}>
           {Math.round(event.accuracy_score * 100)}%
         </div>
       )}
+    </div>
+  )
+}
+
+function MetricTile({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="card" style={{ textAlign: 'center', padding: '14px 12px' }}>
+      <div className="section-label" style={{ fontSize: 9 }}>{label}</div>
+      <div className="metric-number" style={{ fontSize: 20, color, overflowWrap: 'anywhere' }}>{value}</div>
     </div>
   )
 }
@@ -90,20 +94,22 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
   }, [params.id])
 
   if (loading) return (
-    <div style={{ padding: 40, textAlign: 'center', fontFamily: 'var(--mono)', fontSize: 12, color: '#4B5563' }}>
-      LOADING RUN...
+    <div className="page-content">
+      <div className="card card-pad" style={{ textAlign: 'center', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-muted)' }}>
+        LOADING RUN...
+      </div>
     </div>
   )
 
   if (!run) return (
-    <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>
-      Run not found.
+    <div className="page-content">
+      <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--danger)' }}>
+        Run not found.
+      </div>
     </div>
   )
 
   const showH1Alert = run.outcome_correct && run.process_error_detected
-
-  // Build tool event map for trajectory
   const toolEventMap: Record<string, any> = {}
   for (const event of run.tool_call_events ?? []) {
     toolEventMap[event.tool_name] = event
@@ -111,148 +117,139 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
 
   const verdictKey = run.final_verdict ?? 'unknown'
   const verdictColor = {
-    no_breach: '#10B981', imminent: '#F59E0B', breach: '#EF4444',
-    breach_curable: '#F59E0B', unknown: '#9CA3AF',
-  }[verdictKey] ?? '#9CA3AF'
+    no_breach: 'var(--pass)',
+    imminent: 'var(--warn)',
+    breach: 'var(--danger)',
+    breach_curable: 'var(--warn)',
+    unknown: 'var(--text-secondary)',
+  }[verdictKey] ?? 'var(--text-secondary)'
 
   return (
     <div>
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <a href="/runs" style={{ color: '#6B7280', textDecoration: 'none', fontSize: 13 }}>← Runs</a>
-          <span style={{ color: '#4B5563' }}>/</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#9CA3AF' }}>{run.run_id.slice(0, 8)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{run.borrower_name}</h1>
-            <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
-              {run.scenario_id} · Autonomy L{run.autonomy_level} ·{' '}
-              {run.started_at ? new Date(run.started_at).toLocaleString() : '—'}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <span className={`badge ${run.ground_truth_fallback_used ? 'badge-warn' : 'badge-pass'}`}>
-                {run.data_source ?? 'unknown source'}
-              </span>
-              <span className={`badge ${run.transparency_artifacts_present ? 'badge-pass' : 'badge-warn'}`}>
-                {run.transparency_artifacts_present ? 'transparent trace' : 'trace incomplete'}
-              </span>
-            </div>
+        <div className="page-header-inner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, minWidth: 0 }}>
+            <a href="/runs" style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: 13 }}>Back to runs</a>
+            <span style={{ color: 'var(--text-muted)' }}>/</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{run.run_id.slice(0, 8)}</span>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{
-              fontFamily: 'var(--mono)', fontSize: 20, fontWeight: 600, color: verdictColor,
-              letterSpacing: '0.04em',
-            }}>
-              {run.final_verdict?.toUpperCase().replace('_', ' ')}
+          <div className="detail-header-row">
+            <div style={{ minWidth: 0 }}>
+              <h1 className="page-title">{run.borrower_name}</h1>
+              <div className="page-subtitle">
+                {run.scenario_id} - Autonomy L{run.autonomy_level} - {run.started_at ? new Date(run.started_at).toLocaleString() : '-'}
+              </div>
+              <div className="pill-row" style={{ marginTop: 10 }}>
+                <span className={`badge ${run.ground_truth_fallback_used ? 'badge-warn' : 'badge-pass'}`}>
+                  {run.data_source ?? 'unknown source'}
+                </span>
+                <span className={`badge ${run.transparency_artifacts_present ? 'badge-pass' : 'badge-warn'}`}>
+                  {run.transparency_artifacts_present ? 'transparent trace' : 'trace incomplete'}
+                </span>
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>
-              Expected: {run.correct_verdict?.toUpperCase().replace('_', ' ') ?? '—'}
+            <div style={{ textAlign: 'right', minWidth: 180 }}>
+              <div style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 20,
+                fontWeight: 600,
+                color: verdictColor,
+                letterSpacing: '0.04em',
+                overflowWrap: 'anywhere',
+              }}>
+                {(run.final_verdict ?? 'unknown').toUpperCase().replace('_', ' ')}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                Expected: {(run.correct_verdict ?? '-').toUpperCase().replace('_', ' ')}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="page-content">
-
-        {/* H1 Alert Banner */}
         {showH1Alert && (
-          <div style={{
-            background: 'rgba(239,68,68,0.08)',
-            border: '1px solid rgba(239,68,68,0.4)',
-            borderLeft: '4px solid #EF4444',
-            borderRadius: 4,
-            padding: '14px 18px',
-            marginBottom: 20,
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 12,
-          }}>
-            <span style={{ fontSize: 18 }}>⚠️</span>
-            <div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#EF4444', fontWeight: 600, letterSpacing: '0.04em' }}>
-                PROCESS ERROR DETECTED
-              </div>
-              <div style={{ fontSize: 13, color: '#FCA5A5', marginTop: 4 }}>
-                This run returned a <strong>correct outcome</strong> but skipped required compliance steps.
-                This error is <strong>invisible to outcome-only metrics</strong> — exactly what H1 predicts.
-              </div>
-            </div>
+          <div className="status-callout" style={{ marginBottom: 20, borderLeftColor: 'var(--danger)' }}>
+            <strong style={{ color: 'var(--danger)' }}>Process error detected</strong>
+            <span>
+              This run returned a correct outcome but skipped required compliance steps. That is the H1 thesis signal: outcome-only evaluation underreports process risk.
+            </span>
           </div>
         )}
 
-        {/* Metric summary cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
-          {[
-            { label: 'Outcome', value: run.outcome_correct === null ? '—' : run.outcome_correct ? '✓ CORRECT' : '✗ WRONG',
-              color: run.outcome_correct ? '#10B981' : '#EF4444' },
-            { label: 'Clause Coverage', value: `${Math.round((run.clause_coverage_score ?? 0) * 100)}%`,
-              color: (run.clause_coverage_score ?? 0) >= 1 ? '#10B981' : '#EF4444' },
-            { label: 'Trajectory Score', value: `${Math.round((run.trajectory_score ?? 0) * 100)}%`,
-              color: '#3B82F6' },
-            { label: 'Tool Accuracy', value: `${Math.round((run.tool_call_accuracy_score ?? 0) * 100)}%`,
-              color: '#9CA3AF' },
-            { label: 'Duration', value: run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '—',
-              color: '#9CA3AF' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="card" style={{ textAlign: 'center', padding: '14px 12px' }}>
-              <div className="section-label" style={{ fontSize: 9 }}>{label}</div>
-              <div className="metric-number" style={{ fontSize: 20, color }}>{value}</div>
-            </div>
-          ))}
+        <div className="summary-grid" style={{ marginBottom: 24 }}>
+          <MetricTile
+            label="Outcome"
+            value={run.outcome_correct === null ? '-' : run.outcome_correct ? 'CORRECT' : 'WRONG'}
+            color={run.outcome_correct ? 'var(--pass)' : 'var(--danger)'}
+          />
+          <MetricTile
+            label="Clause Coverage"
+            value={`${Math.round((run.clause_coverage_score ?? 0) * 100)}%`}
+            color={(run.clause_coverage_score ?? 0) >= 1 ? 'var(--pass)' : 'var(--danger)'}
+          />
+          <MetricTile
+            label="Trajectory Score"
+            value={`${Math.round((run.trajectory_score ?? 0) * 100)}%`}
+            color="var(--accent-strong)"
+          />
+          <MetricTile
+            label="Tool Accuracy"
+            value={`${Math.round((run.tool_call_accuracy_score ?? 0) * 100)}%`}
+            color="var(--text-secondary)"
+          />
+          <MetricTile
+            label="Duration"
+            value={run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '-'}
+            color="var(--text-secondary)"
+          />
         </div>
 
-        {/* PDF Inputs */}
         {run.pdfScenario?.input_summary && (
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div className="section-label" style={{ marginBottom: 12 }}>PDF-Derived Inputs</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+          <div className="card card-pad" style={{ marginBottom: 20 }}>
+            <div className="section-label">PDF-derived inputs</div>
+            <div className="responsive-data-grid">
               {Object.entries(run.pdfScenario.input_summary).map(([k, v]) => (
-                <div key={k} style={{ background: '#0B1220', borderRadius: 6, padding: 12 }}>
-                  <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 13, marginTop: 6 }}>
-                    {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                  </div>
+                <div key={k} className="input-tile">
+                  <span>{k.replace(/_/g, ' ')}</span>
+                  <strong>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</strong>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Trajectory Timeline */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="section-label">Tool Execution Trajectory</div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', marginTop: 16, padding: '0 20px' }}>
-            {EXPECTED_TOOLS.map((toolDef, i) => (
+        <div className="card card-pad" style={{ marginBottom: 20 }}>
+          <div className="section-label">Tool execution trajectory</div>
+          <div className="tool-timeline" style={{ marginTop: 16 }}>
+            {EXPECTED_TOOLS.map(toolDef => (
               <ToolNode
                 key={toolDef.name}
                 toolDef={toolDef}
                 event={toolEventMap[toolDef.name]}
-                index={i}
               />
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 20, marginTop: 20, fontSize: 11, color: '#4B5563' }}>
-            <span><span style={{ color: '#10B981' }}>● </span>Called & succeeded</span>
-            <span><span style={{ color: '#EF4444' }}>● </span>Called with error</span>
-            <span><span style={{ color: '#4B5563' }}>○ </span>Skipped / not called</span>
-            <span><span style={{ color: '#F59E0B' }}>★ </span>Critical step</span>
+          <div className="pill-row" style={{ marginTop: 20, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span><span style={{ color: 'var(--pass)' }}>● </span>Called and succeeded</span>
+            <span><span style={{ color: 'var(--danger)' }}>● </span>Called with error</span>
+            <span><span style={{ color: 'var(--text-muted)' }}>○ </span>Skipped or not called</span>
+            <span><span style={{ color: 'var(--warn)' }}>★ </span>Critical step</span>
           </div>
         </div>
 
-        {/* Metric Breakdown */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="section-label" style={{ marginBottom: 12 }}>Metric Breakdown</div>
+        <div className="card card-pad" style={{ marginBottom: 20 }}>
+          <div className="section-label">Metric breakdown</div>
           <div style={{ display: 'grid', gap: 12 }}>
             {(run.tool_accuracy_details ?? []).map((item, idx) => (
-              <div key={idx} style={{ background: '#0B1220', borderRadius: 6, padding: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{item.tool_name}</span>
-                  <span style={{ color: item.accuracy_score >= 0.8 ? '#10B981' : '#F59E0B' }}>
+              <div key={idx} className="input-tile">
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, overflowWrap: 'anywhere' }}>{item.tool_name}</span>
+                  <span style={{ color: item.accuracy_score >= 0.8 ? 'var(--pass)' : 'var(--warn)', fontFamily: 'var(--mono)' }}>
                     {(item.accuracy_score * 100).toFixed(0)}%
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                   {item.notes?.[0] ?? 'All checks passed'}
                 </div>
               </div>
@@ -260,37 +257,38 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Audit Log */}
-        <div className="card">
-          <div className="section-label" style={{ marginBottom: 12 }}>
-            Audit Trail ({run.audit_log_entries?.length ?? 0} events)
+        <div className="card card-pad">
+          <div className="section-label">
+            Audit trail ({run.audit_log_entries?.length ?? 0} events)
           </div>
-          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 400, overflowY: 'auto', paddingRight: 4 }}>
             {(run.audit_log_entries ?? []).length === 0 ? (
-              <div style={{ color: '#4B5563', fontSize: 12, fontFamily: 'var(--mono)' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--mono)' }}>
                 No audit entries recorded.
               </div>
             ) : (
               (run.audit_log_entries ?? []).map((entry, i) => (
-                <div key={i} style={{
-                  display: 'flex', gap: 12, alignItems: 'flex-start',
-                  padding: '8px 0',
-                  borderBottom: i < (run.audit_log_entries?.length ?? 0) - 1 ? '1px solid rgba(31,41,55,0.4)' : 'none',
-                }}>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#4B5563', minWidth: 80, marginTop: 2 }}>
-                    {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '—'}
+                <div
+                  key={i}
+                  className="audit-row"
+                  style={{
+                    borderBottom: i < (run.audit_log_entries?.length ?? 0) - 1 ? '1px solid rgba(148,163,184,0.1)' : 'none',
+                  }}
+                >
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                    {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-'}
                   </div>
                   <div style={{
-                    fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 600,
-                    color: EVENT_COLORS[entry.event_type] ?? '#9CA3AF',
-                    minWidth: 120,
+                    fontFamily: 'var(--mono)',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: EVENT_COLORS[entry.event_type] ?? 'var(--text-secondary)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
-                    marginTop: 2,
                   }}>
                     {entry.event_type.replace('_', ' ')}
                   </div>
-                  <div style={{ fontSize: 12, color: '#9CA3AF', flex: 1, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 0, overflowWrap: 'anywhere' }}>
                     {entry.message}
                   </div>
                 </div>
