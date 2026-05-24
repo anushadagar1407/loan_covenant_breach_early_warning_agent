@@ -76,6 +76,25 @@ That can be added later, but for thesis validity the current PDF-based ingestion
 - Node.js `18+`
 - Ollama installed locally
 
+### GitHub Codespaces prerequisite
+
+New Codespaces install Ollama automatically from `.devcontainer/install-ollama.sh`
+when the Codespace is created. If you created the Codespace before this file was
+added, rebuild the Codespace container or run the manual install once:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+Verify the install:
+
+```bash
+ollama --version
+```
+
+If `ollama serve` prints `bash: ollama: command not found`, Ollama is not yet
+installed in that Codespace container.
+
 ## Setup
 
 ### 1. Start Ollama
