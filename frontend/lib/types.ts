@@ -156,10 +156,37 @@ export interface TrustResponsePayload {
 
 export interface TrustAnalysis {
   response_count: number;
+  human_response_count?: number;
+  synthetic_response_count?: number;
+  evidence_source?: 'none' | 'human' | 'synthetic_demo' | 'mixed';
   h3_status?: string;
   h4_status?: string;
   message?: string;
+  note?: string;
   transparency_trust_delta?: number | null;
-  by_condition?: Record<string, { count: number; avg_trust_score: number | null }>;
-  by_stakeholder_group?: Record<string, { count: number; avg_trust_score: number | null }>;
+  stakeholder_group_count?: number;
+  paired_run_count?: number;
+  by_condition?: Record<string, TrustSummaryGroup>;
+  by_stakeholder_group?: Record<string, TrustSummaryGroup>;
+  trust_predictor_averages?: {
+    auditability_score: number | null;
+    reliability_score: number | null;
+    explanation_sufficiency_score: number | null;
+  };
+  h3_readiness?: {
+    regression_ready: boolean;
+    message: string;
+  };
+  h4_readiness?: {
+    comparison_ready: boolean;
+    message: string;
+  };
+}
+
+export interface TrustSummaryGroup {
+  count: number;
+  avg_trust_score: number | null;
+  avg_auditability_score?: number | null;
+  avg_reliability_score?: number | null;
+  avg_explanation_sufficiency_score?: number | null;
 }

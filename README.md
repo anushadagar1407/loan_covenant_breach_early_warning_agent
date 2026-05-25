@@ -193,6 +193,17 @@ Fetch trust-study analysis:
 curl http://localhost:8000/api/trust/analysis
 ```
 
+For a presentation-only H3/H4 demo, seed clearly labeled synthetic responses:
+
+```bash
+cd backend
+python scripts/seed_synthetic_trust_pilot.py
+```
+
+These rows are stored with `response_source="synthetic_demo"`. They are useful
+for showing the dashboard mechanics, but they are not real stakeholder survey
+evidence and should remain separate from final thesis analysis.
+
 ## Agent execution flow
 
 ### L1

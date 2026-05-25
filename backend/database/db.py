@@ -36,6 +36,7 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _ensure_agent_run_columns(conn)
+        await _ensure_trust_response_columns(conn)
     print(f"Database initialized at {DB_PATH}")
 
 
@@ -52,6 +53,18 @@ async def _ensure_agent_run_columns(conn):
     for name, ddl in columns.items():
         if name not in existing:
             await conn.execute(text(f"ALTER TABLE agent_runs ADD COLUMN {name} {ddl}"))
+
+
+async def _ensure_trust_response_columns(conn):
+    """SQLite-friendly migration for trust-study provenance columns."""
+    result = await conn.execute(text("PRAGMA table_info(trust_responses)"))
+    existing = {row[1] for row in result.fetchall()}
+    columns = {
+        "response_source": "VARCHAR(50) DEFAULT 'human'",
+    }
+    for name, ddl in columns.items():
+        if name not in existing:
+            await conn.execute(text(f"ALTER TABLE trust_responses ADD COLUMN {name} {ddl}"))
 
 
 async def get_db():

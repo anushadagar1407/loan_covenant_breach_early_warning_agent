@@ -44,6 +44,33 @@ function AnalysisCard({ label, value, sub, tone = 'neutral' }: {
   )
 }
 
+function ReadinessPanel({ title, status, body, tone = 'neutral' }: {
+  title: string
+  status: string
+  body: string
+  tone?: 'neutral' | 'pass' | 'warn' | 'danger'
+}) {
+  const border = {
+    neutral: 'var(--accent)',
+    pass: 'var(--pass)',
+    warn: 'var(--warn)',
+    danger: 'var(--danger)',
+  }[tone]
+  return (
+    <div className="status-callout" style={{ borderLeftColor: border }}>
+      <strong>{title}: {status}</strong>
+      <span>{body}</span>
+    </div>
+  )
+}
+
+function evidenceSourceLabel(source?: TrustAnalysis['evidence_source']) {
+  if (source === 'human') return 'Human stakeholder evidence'
+  if (source === 'mixed') return 'Mixed human + synthetic pilot evidence'
+  if (source === 'synthetic_demo') return 'Synthetic pilot evidence'
+  return 'Trust evidence not collected'
+}
+
 function RangeField({
   label,
   value,
@@ -129,6 +156,9 @@ export default function TrustStudyPage() {
   const outcomeOnly = analysis?.by_condition?.outcome_only
   const transparent = analysis?.by_condition?.transparent
   const delta = analysis?.transparency_trust_delta
+  const predictors = analysis?.trust_predictor_averages
+  const sourceLabel = evidenceSourceLabel(analysis?.evidence_source)
+  const syntheticTrust = analysis?.evidence_source === 'synthetic_demo' || analysis?.evidence_source === 'mixed'
 
   return (
     <div>
@@ -150,8 +180,8 @@ export default function TrustStudyPage() {
           <AnalysisCard
             label="Responses"
             value={String(analysis?.response_count ?? 0)}
-            sub="Pilot sample size"
-            tone={(analysis?.response_count ?? 0) > 0 ? 'pass' : 'warn'}
+            sub={sourceLabel}
+            tone={(analysis?.response_count ?? 0) > 0 ? syntheticTrust ? 'warn' : 'pass' : 'warn'}
           />
           <AnalysisCard
             label="Outcome-only trust"
@@ -170,6 +200,57 @@ export default function TrustStudyPage() {
             sub="Transparent minus outcome-only"
             tone={delta == null ? 'warn' : delta > 0 ? 'pass' : 'danger'}
           />
+        </section>
+
+        {syntheticTrust && (
+          <div className="status-callout" style={{ marginBottom: 20, borderLeftColor: 'var(--warn)' }}>
+            <strong>{sourceLabel}</strong>
+            <span>
+              These H3/H4 values are generated for a dashboard pilot demonstration. Keep them separate from real stakeholder responses in the final thesis analysis.
+            </span>
+          </div>
+        )}
+
+        <section className="story-grid" style={{ marginBottom: 20 }}>
+          <div className="card card-pad">
+            <div className="section-label">H3 trust predictors</div>
+            <h2 className="page-title">Compare accuracy with transparency-based trust signals.</h2>
+            <p className="page-subtitle">
+              H3 needs trust to be modeled separately from traditional performance metrics. These survey fields capture
+              auditability, perceived reliability, and explanation sufficiency for later comparison.
+            </p>
+            <div className="metric-grid" style={{ marginTop: 16 }}>
+              <AnalysisCard label="Auditability" value={avg(predictors?.auditability_score)} sub="Mean survey score" />
+              <AnalysisCard label="Reliability" value={avg(predictors?.reliability_score)} sub="Mean survey score" />
+              <AnalysisCard label="Explanation" value={avg(predictors?.explanation_sufficiency_score)} sub="Mean survey score" />
+            </div>
+          </div>
+
+          <div className="card card-pad">
+            <div className="section-label">H4 condition design</div>
+            <div className="form-grid">
+              <ReadinessPanel
+                title="H3"
+                status={analysis?.h3_readiness?.regression_ready ? 'pilot ready' : 'collecting'}
+                body={analysis?.h3_readiness?.message ?? 'Collect stakeholder responses to evaluate H3.'}
+                tone={analysis?.h3_readiness?.regression_ready ? 'pass' : 'warn'}
+              />
+              <ReadinessPanel
+                title="H4"
+                status={analysis?.h4_readiness?.comparison_ready ? 'comparison ready' : 'collecting'}
+                body={analysis?.h4_readiness?.message ?? 'Collect outcome-only and transparent responses to evaluate H4.'}
+                tone={analysis?.h4_readiness?.comparison_ready ? 'pass' : 'warn'}
+              />
+              <div className="stat-list">
+                <div className="stat-row"><span>Stakeholder groups</span><strong>{analysis?.stakeholder_group_count ?? 0}</strong></div>
+                <div className="stat-row"><span>Runs with both conditions</span><strong>{analysis?.paired_run_count ?? 0}</strong></div>
+                <div className="stat-row"><span>Outcome-only responses</span><strong>{outcomeOnly?.count ?? 0}</strong></div>
+                <div className="stat-row"><span>Transparent responses</span><strong>{transparent?.count ?? 0}</strong></div>
+                <div className="stat-row"><span>Human responses</span><strong>{analysis?.human_response_count ?? 0}</strong></div>
+                <div className="stat-row"><span>Synthetic responses</span><strong>{analysis?.synthetic_response_count ?? 0}</strong></div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="story-grid" style={{ marginBottom: 20 }}>
@@ -259,19 +340,20 @@ export default function TrustStudyPage() {
 
           <div className="panel-stack">
             <div className="card card-pad">
-              <div className="section-label">H3 interpretation</div>
-              <h2 className="page-title">Trust is measured separately from accuracy.</h2>
+              <div className="section-label">H3 evidence</div>
+              <h2 className="page-title">Trust is not inferred from correctness.</h2>
               <p className="page-subtitle">
-                The proposal requires proving that traditional metrics are weak predictors of trust. This pilot collects the missing dependent variable:
-                stakeholder trust ratings by role and evaluation condition.
+                The pilot records stakeholder trust ratings by role, then preserves auditability, reliability,
+                and explanation sufficiency as candidate predictors.
               </p>
             </div>
 
             <div className="card card-pad">
-              <div className="section-label">H4 interpretation</div>
+              <div className="section-label">H4 evidence</div>
               <h2 className="page-title">Transparency must be compared, not assumed.</h2>
               <p className="page-subtitle">
-                For a convincing defense, collect paired ratings for the same run: first outcome-only, then transparent. A positive delta supports the direction of H4.
+                Record outcome-only and transparent responses for the same run so any trust lift is tied
+                to audit trails, reasoning logs, and registry visibility.
               </p>
             </div>
 
@@ -286,6 +368,8 @@ export default function TrustStudyPage() {
                       <th>Group</th>
                       <th>Responses</th>
                       <th>Avg trust</th>
+                      <th>Avg auditability</th>
+                      <th>Avg explanation</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -294,11 +378,13 @@ export default function TrustStudyPage() {
                         <td style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{group.replace('_', ' ')}</td>
                         <td>{data.count}</td>
                         <td style={{ fontFamily: 'var(--mono)' }}>{avg(data.avg_trust_score)}</td>
+                        <td style={{ fontFamily: 'var(--mono)' }}>{avg(data.avg_auditability_score)}</td>
+                        <td style={{ fontFamily: 'var(--mono)' }}>{avg(data.avg_explanation_sufficiency_score)}</td>
                       </tr>
                     ))}
                     {Object.keys(analysis?.by_stakeholder_group ?? {}).length === 0 && (
                       <tr>
-                        <td colSpan={3} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
+                        <td colSpan={5} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
                           No trust responses recorded yet.
                         </td>
                       </tr>
