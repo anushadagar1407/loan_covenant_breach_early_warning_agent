@@ -144,6 +144,7 @@ class TrustResponse(Base):
     run_id = Column(String(36), ForeignKey("agent_runs.run_id"), nullable=False, index=True)
     stakeholder_group = Column(String(50), nullable=False)
     transparency_condition = Column(String(50), nullable=False)
+    response_source = Column(String(50), default="human")
     trust_score = Column(Float, nullable=False)
     auditability_score = Column(Float)
     reliability_score = Column(Float)
@@ -157,6 +158,7 @@ class TrustResponse(Base):
             "run_id": self.run_id,
             "stakeholder_group": self.stakeholder_group,
             "transparency_condition": self.transparency_condition,
+            "response_source": self.response_source,
             "trust_score": self.trust_score,
             "auditability_score": self.auditability_score,
             "reliability_score": self.reliability_score,

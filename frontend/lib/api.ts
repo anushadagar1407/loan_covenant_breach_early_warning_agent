@@ -1,4 +1,4 @@
-import type { AgentRun, RunDetail, RegistrySummary, Scenario } from './types'
+import type { AgentRun, RunDetail, RegistrySummary, Scenario, TrustAnalysis, TrustResponsePayload } from './types'
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -33,10 +33,10 @@ export const api = {
   getH2Evidence: (): Promise<any> =>
     fetchJSON('/api/registry/h2-evidence'),
 
-  getTrustAnalysis: (): Promise<any> =>
+  getTrustAnalysis: (): Promise<TrustAnalysis> =>
     fetchJSON('/api/trust/analysis'),
 
-  submitTrustResponse: (payload: Record<string, any>): Promise<any> =>
+  submitTrustResponse: (payload: TrustResponsePayload): Promise<any> =>
     fetch(`${BASE}/api/trust/responses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

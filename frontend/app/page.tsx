@@ -1,54 +1,41 @@
-/**
- * frontend/app/page.tsx
- * ======================
- * UPDATED Dashboard with statistical validation
- */
-
 "use client";
 
 import { useEffect, useState } from "react";
-import { RegistrySummary } from "@/lib/types";
+import type { RegistrySummary, RunDetail, Scenario } from "@/lib/types";
+
+type RunPhase = "form" | "running" | "done" | "error";
+
+const BASE: string = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+const autonomyOptions = [
+  { v: 1, label: "L1 - Constrained", desc: "Fixed six-tool workflow with explicit compliance order." },
+  { v: 2, label: "L2 - Moderate", desc: "Guided workflow with limited judgment over optional steps." },
+  { v: 3, label: "L3 - Autonomous", desc: "Agent chooses its own sequence under the same audit guardrails." },
+];
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<RegistrySummary | null>(null);
-  const [ruleBasedComparison, setRuleBasedComparison] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [runModalOpen, setRunModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
-      // Use the same base URL as lib/api.ts
-      const BASE: string = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+      setLoading(true);
+      setError(null);
 
       try {
-        // 1) Summary
         const summaryRes = await fetch(`${BASE}/api/registry/summary`, {
           cache: "no-store",
         });
         if (!summaryRes.ok) {
           throw new Error(`Summary API error ${summaryRes.status}`);
         }
-        const summaryData = await summaryRes.json();
-        setSummary(summaryData);
-
-        // 2) Baseline comparison (rule-based baseline)
-        try {
-          const baselineRes = await fetch(
-            `${BASE}/api/registry/baselines/compare?baseline_type=rule_based`,
-            { cache: "no-store" }
-          );
-          if (baselineRes.ok) {
-            const baselineData = await baselineRes.json();
-            setRuleBasedComparison(baselineData);
-          } else {
-            console.log("Baseline comparison not available yet");
-          }
-        } catch (e) {
-          console.log("Baseline comparison not available yet");
-        }
-
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching data", error);
+        setSummary(await summaryRes.json());
+      } catch (err: any) {
+        console.error("Error fetching dashboard data", err);
+        setError(err?.message || "Unable to load dashboard data.");
+      } finally {
         setLoading(false);
       }
     }
@@ -56,277 +43,338 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  if (loading) return <div className="p-8">Loading...</div>;
-  if (!summary) return <div className="p-8">No data available</div>;
+  if (loading) {
+    return (
+      <div className="page-content">
+        <div className="card card-pad" style={{ color: "var(--text-muted)", fontFamily: "var(--mono)", fontSize: 12 }}>
+          Loading dashboard metrics...
+        </div>
+      </div>
+    );
+  }
 
-  const h1 = summary.h1_validation;
-  const h2 = summary.h2_validation;
-  const cm = summary.classification_metrics;
+  const hasSummary = Boolean(summary);
+
+  const h1 = summary?.h1_validation;
+  const h2 = summary?.h2_validation;
+  const cm = summary?.classification_metrics;
+  const evidenceLabel = summary?.evidence_quality?.minimum_runs_met
+    ? "Sample threshold met"
+    : "Exploratory sample";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
-      <div className="container mx-auto p-8">
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">
-            Deutsche Bank – Covenant Intelligence Platform
-          </h1>
-          <p className="text-gray-300">Agentic Evaluation Framework</p>
-        </header>
+    <div className="dashboard-page">
+      <div className="page-content">
+        <section className="dashboard-hero" aria-labelledby="dashboard-title">
+          <div>
+            <div className="eyebrow">Covenant Intelligence Platform</div>
+            <h1 id="dashboard-title">Process-aware breach detection for defensible agent evaluation.</h1>
+            <p>
+              A thesis demo dashboard for comparing outcome accuracy against process reliability,
+              clause coverage, and autonomy-driven risk.
+            </p>
+          </div>
+          <div className="dashboard-hero-actions">
+            <a href="/runs" className="button button-secondary">View runs</a>
+            <button
+              type="button"
+              onClick={() => setRunModalOpen(true)}
+              className="button button-primary"
+            >
+              Run Agent
+            </button>
+          </div>
+        </section>
 
-        {/* Top Metrics */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <MetricCard
-            title="TOTAL RUNS"
-            value={summary.total_runs}
-            subtitle="all time"
-            color="blue"
-          />
-          <MetricCard
-            title="PROCESS ERROR"
-            value={`${(summary.process_error_rate * 100).toFixed(0)}%`}
-            subtitle={`${summary.process_errors} runs`}
-            color="red"
-          />
-          <MetricCard
-            title="GAP SCORE"
-            value={
-              h1.significant_at_0_05
-                ? `+${(h1.gap_score_mean * 100).toFixed(1)}%`
-                : "N/S"
-            }
-            subtitle={`p=${h1.p_value.toFixed(4)}`}
-            color={h1.significant_at_0_05 ? "green" : "yellow"}
-          />
-          <MetricCard
-            title="COVERAGE"
-            value={`${(summary.avg_clause_coverage_score * 100).toFixed(0)}%`}
-            subtitle={`${summary.fully_compliant_runs} compliant`}
-            color="blue"
-          />
-        </div>
+        {!hasSummary && (
+          <div className="status-callout" style={{ marginTop: 18, borderLeftColor: "var(--danger)" }}>
+            <strong style={{ color: "var(--danger)" }}>Dashboard metrics unavailable</strong>
+            <span>{error || "The backend registry summary did not return data. The launcher remains available for troubleshooting runs."}</span>
+          </div>
+        )}
 
-        {/* H1 Panel */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-2xl font-bold mb-4">
-            H1: GAP SCORE VALIDATION
-          </h2>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2 text-sm">
-              <StatRow
-                label="Gap Score"
-                value={`${(h1.gap_score_mean * 100).toFixed(2)}%`}
-              />
-              <StatRow
-                label="95% CI"
-                value={`[${(h1.confidence_interval_95[0] * 100).toFixed(
-                  1
-                )}%, ${(h1.confidence_interval_95[1] * 100).toFixed(1)}%]`}
-              />
-              <StatRow
-                label="P-Value"
-                value={h1.p_value.toFixed(6)}
-                highlight={h1.p_value < 0.05}
-              />
-              <StatRow
-                label="Cohen's d"
-                value={`${h1.cohens_d.toFixed(3)} (${
-                  h1.effect_size_interpretation
-                })`}
-              />
-            </div>
-            <div className="bg-gray-900 p-4 rounded">
-              <p className="font-bold text-lg mb-2">{h1.conclusion}</p>
-              <p className="text-sm">
-                {summary.evidence_quality?.minimum_runs_met
-                  ? h1.significant_at_0_05
-                    ? "H1 evidence detected"
-                    : "H1 not supported in current data"
-                  : "Exploratory: collect more runs"}
-              </p>
-              {summary.evidence_quality && (
-                <p className="text-xs text-gray-400 mt-2">
-                  Fallback runs: {summary.evidence_quality.ground_truth_fallback_runs}
+        {summary && h1 && (
+          <section className="metric-grid" style={{ marginTop: 18 }} aria-label="Top dashboard metrics">
+            <MetricCard
+              title="Total Runs"
+              value={summary.total_runs}
+              subtitle={evidenceLabel}
+              tone="neutral"
+            />
+            <MetricCard
+              title="Process Error Rate"
+              value={`${(summary.process_error_rate * 100).toFixed(0)}%`}
+              subtitle={`${summary.process_errors} process failures`}
+              tone="danger"
+            />
+            <MetricCard
+              title="Gap Score"
+              value={h1.significant_at_0_05 ? `+${(h1.gap_score_mean * 100).toFixed(1)}%` : "N/S"}
+              subtitle={`p=${h1.p_value.toFixed(4)}`}
+              tone={h1.significant_at_0_05 ? "warn" : "neutral"}
+            />
+            <MetricCard
+              title="Clause Coverage"
+              value={`${(summary.avg_clause_coverage_score * 100).toFixed(0)}%`}
+              subtitle={`${summary.fully_compliant_runs} fully compliant`}
+              tone="pass"
+            />
+          </section>
+        )}
+
+        {summary?.evidence_quality && (
+          <div
+            className="status-callout"
+            style={{ marginTop: 18, borderLeftColor: summary.evidence_quality.minimum_runs_met ? "var(--pass)" : "var(--warn)" }}
+          >
+            <strong>Evidence quality: {evidenceLabel}</strong>
+            <span>
+              Ground-truth fallback runs: {summary.evidence_quality.ground_truth_fallback_runs}. H3/H4 trust signals remain separate from process metrics.
+            </span>
+          </div>
+        )}
+
+        <div className="dashboard-main-grid">
+          <div className="panel-stack">
+            {summary && h1 && cm ? (
+              <>
+              <section className="card card-pad" aria-labelledby="h1-title">
+              <div className="section-label">H1 validation</div>
+              <div className="split-grid">
+                <div>
+                  <h2 id="h1-title" className="page-title">Outcome metrics can hide process failures</h2>
+                  <p className="page-subtitle">
+                    The gap score shows whether apparently correct decisions still came from an incomplete workflow.
+                  </p>
+                  <div className="stat-list" style={{ marginTop: 18 }}>
+                    <StatRow label="Gap score" value={`${(h1.gap_score_mean * 100).toFixed(2)}%`} />
+                    <StatRow
+                      label="95% confidence interval"
+                      value={`[${(h1.confidence_interval_95[0] * 100).toFixed(1)}%, ${(h1.confidence_interval_95[1] * 100).toFixed(1)}%]`}
+                    />
+                    <StatRow label="P-value" value={h1.p_value.toFixed(6)} highlight={h1.p_value < 0.05} />
+                    <StatRow label="Cohen's d" value={`${h1.cohens_d.toFixed(3)} (${h1.effect_size_interpretation})`} />
+                  </div>
+                </div>
+                <div className="status-callout" style={{ borderLeftColor: h1.significant_at_0_05 ? "var(--pass)" : "var(--warn)" }}>
+                  <strong>{h1.conclusion}</strong>
+                  <span>
+                    {summary.evidence_quality?.minimum_runs_met
+                      ? h1.significant_at_0_05
+                        ? "H1 signal is present in the current registry."
+                        : "H1 is not supported by the current sample."
+                      : "Use this as exploratory evidence until more runs are collected."}
+                  </span>
+                </div>
+              </div>
+              </section>
+
+              <section className="card card-pad" aria-labelledby="classification-title">
+              <div className="section-label">Breach detection metrics</div>
+              <div className="split-grid">
+                <div>
+                  <h2 id="classification-title" className="page-title">Classification quality</h2>
+                  <p className="page-subtitle">
+                    Outcome performance is useful, but the thesis depends on showing why it is incomplete.
+                  </p>
+                  <div className="confusion-grid" style={{ marginTop: 16 }}>
+                    <ConfusionCell label="True positives" value={cm.true_positives} tone="pass" />
+                    <ConfusionCell label="False positives" value={cm.false_positives} tone="danger" />
+                    <ConfusionCell label="False negatives" value={cm.false_negatives} tone="danger" />
+                    <ConfusionCell label="True negatives" value={cm.true_negatives} tone="pass" />
+                  </div>
+                </div>
+                <div className="bar-list">
+                  <MetricBar label="Precision" value={cm.precision} color="var(--pass)" />
+                  <MetricBar label="Recall" value={cm.recall} color="var(--accent-strong)" />
+                  <MetricBar label="F1 score" value={cm.f1_score} color="var(--accent-strong)" />
+                  <MetricBar label="Accuracy" value={cm.accuracy} color="var(--pass)" />
+                </div>
+              </div>
+              </section>
+              </>
+            ) : (
+              <section className="card card-pad">
+                <div className="section-label">Metrics panel</div>
+                <h2 className="page-title">Waiting for registry data</h2>
+                <p className="page-subtitle">
+                  Start the backend API or inspect its logs, then refresh this page. The layout remains stable while the data layer recovers.
                 </p>
-              )}
-            </div>
+              </section>
+            )}
           </div>
-        </div>
 
-        {/* H2 Panel */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-2xl font-bold mb-4">H2: AUTONOMY VS ERRORS</h2>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-3">
-              {h2.level_1_error_rate && (
-                <LevelBar level="L1" errorRate={h2.level_1_error_rate} />
-              )}
-              {h2.level_2_error_rate && (
-                <LevelBar level="L2" errorRate={h2.level_2_error_rate} />
-              )}
-              {h2.level_3_error_rate && (
-                <LevelBar level="L3" errorRate={h2.level_3_error_rate} />
-              )}
-            </div>
-            <div>
-              <div className="space-y-2 text-sm mb-4">
-                <StatRow
-                  label="Chi-Square p"
-                  value={h2.chi_square_p_value.toFixed(6)}
-                  highlight={h2.chi_square_p_value < 0.05}
-                />
-                <StatRow
-                  label="Correlation"
-                  value={`${h2.spearman_correlation.toFixed(3)} (${
-                    h2.trend_direction
-                  })`}
-                />
+          <aside className="panel-stack" aria-label="Autonomy and demo workflow">
+            {h2 && (
+              <section className="card card-pad" aria-labelledby="h2-title">
+              <div className="section-label">H2 validation</div>
+              <h2 id="h2-title" className="page-title">Autonomy vs. process errors</h2>
+              <p className="page-subtitle">
+                A defense-ready demo should make the autonomy tradeoff visible without overloading the screen.
+              </p>
+              <div className="level-bars" style={{ marginTop: 18 }}>
+                {h2.level_1_error_rate !== undefined && <LevelBar level="L1" errorRate={h2.level_1_error_rate} />}
+                {h2.level_2_error_rate !== undefined && <LevelBar level="L2" errorRate={h2.level_2_error_rate} />}
+                {h2.level_3_error_rate !== undefined && <LevelBar level="L3" errorRate={h2.level_3_error_rate} />}
               </div>
-              <div className="bg-gray-900 p-4 rounded">
-                <p className="font-bold">{h2.conclusion}</p>
+              <div className="stat-list" style={{ marginTop: 18 }}>
+                <StatRow label="Chi-square p" value={h2.chi_square_p_value.toFixed(6)} highlight={h2.chi_square_p_value < 0.05} />
+                <StatRow label="Spearman correlation" value={`${h2.spearman_correlation.toFixed(3)} (${h2.trend_direction})`} />
               </div>
-            </div>
-          </div>
-        </div>
+              <div className="status-callout" style={{ marginTop: 16, borderLeftColor: "var(--accent)" }}>
+                <strong>{h2.conclusion}</strong>
+                <span>Use L1/L2/L3 runs in sequence during the live demo to show the process-risk gradient.</span>
+              </div>
+              </section>
+            )}
 
-        {/* Classification Metrics */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-2xl font-bold mb-4">
-            BREACH DETECTION METRICS
-          </h2>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-green-900 p-4 rounded text-center">
-                <div className="text-3xl font-bold">{cm.true_positives}</div>
-                <div className="text-xs">TP</div>
-              </div>
-              <div className="bg-red-900 p-4 rounded text-center">
-                <div className="text-3xl font-bold">{cm.false_positives}</div>
-                <div className="text-xs">FP</div>
-              </div>
-              <div className="bg-red-900 p-4 rounded text-center">
-                <div className="text-3xl font-bold">{cm.false_negatives}</div>
-                <div className="text-xs">FN</div>
-              </div>
-              <div className="bg-green-900 p-4 rounded text-center">
-                <div className="text-3xl font-bold">{cm.true_negatives}</div>
-                <div className="text-xs">TN</div>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <MetricBar label="Precision" value={cm.precision} />
-              <MetricBar label="Recall" value={cm.recall} />
-              <MetricBar label="F1 Score" value={cm.f1_score} />
-              <MetricBar label="Accuracy" value={cm.accuracy} />
-            </div>
-          </div>
+            <section className="card card-pad" aria-labelledby="demo-title">
+              <div className="section-label">Live workflow</div>
+              <h2 id="demo-title" className="page-title">Run a controlled scenario</h2>
+              <p className="page-subtitle">
+                The launcher now keeps setup, progress, and results inside a viewport-safe modal with fixed actions.
+              </p>
+              <button
+                type="button"
+                onClick={() => setRunModalOpen(true)}
+                className="button button-primary"
+                style={{ width: "100%", marginTop: 18 }}
+              >
+                Run Agent
+              </button>
+            </section>
+          </aside>
         </div>
-        <RunAgentButton />
       </div>
+
+      {runModalOpen && <RunAgentModal onClose={() => setRunModalOpen(false)} />}
     </div>
   );
 }
 
-function MetricCard({ title, value, subtitle, color }: any) {
-  const colors: any = {
-    blue: "from-blue-600 to-blue-800",
-    red: "from-red-600 to-red-800",
-    green: "from-green-600 to-green-800",
-    yellow: "from-yellow-600 to-yellow-800",
-  };
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  tone,
+}: {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  tone: "neutral" | "pass" | "warn" | "danger";
+}) {
+  const color = {
+    neutral: "var(--text-primary)",
+    pass: "var(--pass)",
+    warn: "var(--warn)",
+    danger: "var(--danger)",
+  }[tone];
+
   return (
-    <div className={`bg-gradient-to-br ${colors[color]} rounded-lg p-6`}>
-      <div className="text-xs uppercase mb-2">{title}</div>
-      <div className="text-4xl font-bold mb-1">{value}</div>
-      <div className="text-xs opacity-70">{subtitle}</div>
+    <div className="metric-card">
+      <div className="section-label">{title}</div>
+      <div className="metric-card-value" style={{ color }}>{value}</div>
+      <div className="metric-card-subtitle">{subtitle}</div>
     </div>
   );
 }
 
-function StatRow({ label, value, highlight }: any) {
+function StatRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className="flex justify-between">
-      <span className="text-gray-400">{label}:</span>
-      <span className={highlight ? "text-green-400 font-bold" : ""}>
-        {value}
-      </span>
+    <div className="stat-row">
+      <span>{label}</span>
+      <strong style={{ color: highlight ? "var(--pass)" : undefined }}>{value}</strong>
     </div>
   );
 }
 
-function LevelBar({ level, errorRate }: any) {
+function LevelBar({ level, errorRate }: { level: string; errorRate: number }) {
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span>{level}</span>
-        <span>{(errorRate * 100).toFixed(1)}%</span>
+    <div className="bar-row">
+      <div className="bar-row-header">
+        <span>{level} process error rate</span>
+        <strong className="metric-number">{(errorRate * 100).toFixed(1)}%</strong>
       </div>
-      <div className="w-full bg-gray-700 rounded-full h-3">
+      <div className="bar-track">
         <div
-          className="bg-red-500 h-3 rounded-full"
-          style={{ width: `${errorRate * 100}%` }}
+          className="bar-fill"
+          style={{
+            width: `${Math.min(100, Math.max(0, errorRate * 100))}%`,
+            background: "var(--danger)",
+          }}
         />
       </div>
     </div>
   );
 }
 
-function MetricBar({ label, value }: any) {
+function MetricBar({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
+    <div className="bar-row">
+      <div className="bar-row-header">
         <span>{label}</span>
-        <span className="font-bold">{(value * 100).toFixed(1)}%</span>
+        <strong className="metric-number">{(value * 100).toFixed(1)}%</strong>
       </div>
-      <div className="w-full bg-gray-700 rounded-full h-2">
+      <div className="bar-track">
         <div
-          className="bg-blue-500 h-2 rounded-full"
-          style={{ width: `${value * 100}%` }}
+          className="bar-fill"
+          style={{
+            width: `${Math.min(100, Math.max(0, value * 100))}%`,
+            background: color,
+          }}
         />
       </div>
     </div>
   );
 }
 
-// ============================================================================
-// RUN AGENT — Floating button + modal that POSTs to /api/runs and polls /api/runs/{id}
-// ============================================================================
-
-function RunAgentButton() {
-  const [open, setOpen] = useState(false);
+function ConfusionCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "pass" | "danger";
+}) {
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-8 right-8 z-40 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-full shadow-2xl transition-all hover:scale-105 flex items-center gap-2"
-        title="Trigger a new live agent run"
-      >
-        <span className="text-xl">▶</span>
-        <span>Run Agent</span>
-      </button>
-      {open && <RunAgentModal onClose={() => setOpen(false)} />}
-    </>
+    <div className="confusion-cell">
+      <strong style={{ color: tone === "pass" ? "var(--pass)" : "var(--danger)" }}>{value}</strong>
+      <span>{label}</span>
+    </div>
   );
 }
-
-type RunPhase = "form" | "running" | "done" | "error";
 
 function RunAgentModal({ onClose }: { onClose: () => void }) {
-  const BASE: string = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-
-  const [scenarios, setScenarios] = useState<Array<any>>([]);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [scenarioId, setScenarioId] = useState<string>("");
-  const [autonomyLevel, setAutonomyLevel] = useState<number>(3);
+  const [autonomyLevel, setAutonomyLevel] = useState<number>(1);
   const [phase, setPhase] = useState<RunPhase>("form");
   const [runId, setRunId] = useState<string | null>(null);
-  const [runDetail, setRunDetail] = useState<any>(null);
+  const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load scenarios when modal opens
   useEffect(() => {
     fetch(`${BASE}/api/scenarios`, { cache: "no-store" })
       .then(async r => {
-        if (!r.ok) throw new Error(`Server returned ${r.status}`)
-        return r.json()
+        if (!r.ok) throw new Error(`Server returned ${r.status}`);
+        return r.json();
       })
       .then(data => {
         const list = data.scenarios || [];
@@ -339,21 +387,21 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
       });
   }, []);
 
-  // Poll /api/runs/{run_id} until the row appears in the DB (= agent completed)
   useEffect(() => {
     if (phase !== "running" || !runId) return;
     let cancelled = false;
     let pollCount = 0;
-    const MAX_POLLS = 150; // 5 min at 2s interval
+    const maxPolls = 150;
 
     const poll = async () => {
       if (cancelled) return;
-      pollCount++;
-      if (pollCount > MAX_POLLS) {
+      pollCount += 1;
+      if (pollCount > maxPolls) {
         setError("Run timed out after 5 minutes. Check the backend terminal for errors.");
         setPhase("error");
         return;
       }
+
       try {
         const r = await fetch(`${BASE}/api/runs/${runId}`, { cache: "no-store" });
         if (r.ok) {
@@ -371,6 +419,7 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
           setPhase("done");
           return;
         }
+
         const body = await r.text();
         console.error("Run poll error", r.status, body);
         if (r.status >= 500) {
@@ -381,13 +430,14 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
       } catch (err) {
         console.error("Run poll network error", err);
       }
+
       setTimeout(poll, 2000);
     };
 
-    const t = setTimeout(poll, 1500); // small initial delay
+    const timer = setTimeout(poll, 1500);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [phase, runId]);
 
@@ -412,218 +462,238 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const footer = (
+    <>
+      {phase === "form" && (
+        <>
+          <button type="button" onClick={onClose} className="button button-ghost">Cancel</button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!scenarioId}
+            className="button button-primary"
+          >
+            Run Agent
+          </button>
+        </>
+      )}
+      {phase === "running" && (
+        <button type="button" onClick={onClose} className="button button-secondary">
+          Close, keep running
+        </button>
+      )}
+      {phase === "done" && runDetail && (
+        <>
+          <button type="button" onClick={onClose} className="button button-ghost">Close</button>
+          <a href={`/runs/${runId}`} className="button button-primary">View full run</a>
+        </>
+      )}
+      {phase === "error" && (
+        <>
+          <button type="button" onClick={onClose} className="button button-ghost">Close</button>
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("form");
+              setError(null);
+            }}
+            className="button button-primary"
+          >
+            Try again
+          </button>
+        </>
+      )}
+    </>
+  );
+
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-lg w-full"
+    <div className="modal-backdrop" onClick={onClose}>
+      <section
+        className="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="run-agent-title"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">Run Live Agent</h3>
+        <header className="modal-header">
+          <div>
+            <h2 id="run-agent-title" className="modal-title">Run live agent</h2>
+            <p className="modal-description">Select a PDF-derived scenario and autonomy level.</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl leading-none"
+            className="button button-ghost"
             aria-label="Close"
+            style={{ minHeight: 32, padding: "4px 10px" }}
           >
-            ×
+            X
           </button>
-        </div>
+        </header>
 
-        {/* ---------- Form phase ---------- */}
-        {phase === "form" && (
-          <>
-            <div className="mb-4">
-              <label className="block text-sm text-gray-400 mb-2">Scenario</label>
-              <select
-                value={scenarioId}
-                onChange={e => setScenarioId(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
-              >
-                {scenarios.length === 0 && <option>Loading scenarios…</option>}
-                {scenarios.map(s => (
-                  <option key={s.scenario_id} value={s.scenario_id}>
-                    {s.scenario_id} — {s.borrower_name} ({s.pdf_filename}, expects: {s.expected_verdict})
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Select a PDF-derived scenario. Inputs are parsed from the report, not hardcoded.
+        <div className="modal-body">
+          {phase === "form" && (
+            <div className="form-grid">
+              <div>
+                <label className="form-label" htmlFor="scenario-select">Scenario</label>
+                <select
+                  id="scenario-select"
+                  value={scenarioId}
+                  onChange={e => setScenarioId(e.target.value)}
+                  className="form-control"
+                >
+                  {scenarios.length === 0 && <option>Loading scenarios...</option>}
+                  {scenarios.map(s => (
+                    <option key={s.scenario_id} value={s.scenario_id}>
+                      {s.scenario_id} - {s.borrower_name} ({s.expected_verdict})
+                    </option>
+                  ))}
+                </select>
+                <p className="form-help">
+                  Inputs are parsed from the report catalog, then recorded with provenance in the run trace.
+                </p>
+              </div>
+
+              <div>
+                <div className="form-label">Autonomy level</div>
+                <div className="option-grid">
+                  {autonomyOptions.map(opt => (
+                    <label key={opt.v} className="option-card">
+                      <input
+                        type="radio"
+                        name="autonomy"
+                        checked={autonomyLevel === opt.v}
+                        onChange={() => setAutonomyLevel(opt.v)}
+                      />
+                      <span>
+                        <strong>{opt.label}</strong>
+                        <span>{opt.desc}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {error && <ErrorMessage>{error}</ErrorMessage>}
+            </div>
+          )}
+
+          {phase === "running" && (
+            <div style={{ textAlign: "center", padding: "34px 0" }}>
+              <div className="metric-number" style={{ color: "var(--accent-strong)", fontSize: 14, marginBottom: 12 }}>
+                RUNNING
+              </div>
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 44,
+                  height: 44,
+                  margin: "0 auto 16px",
+                  borderRadius: "50%",
+                  border: "3px solid rgba(94,160,255,0.22)",
+                  borderTopColor: "var(--accent-strong)",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              <p style={{ margin: 0, color: "var(--text-primary)", fontWeight: 600 }}>Agent workflow in progress</p>
+              <p style={{ margin: "8px auto 0", maxWidth: 480, color: "var(--text-muted)", fontSize: 13 }}>
+                Run ID: <span className="metric-number">{runId?.slice(0, 8)}</span>. The modal can close safely while the backend continues processing.
               </p>
             </div>
+          )}
 
-            <div className="mb-6">
-              <label className="block text-sm text-gray-400 mb-2">Autonomy Level</label>
-              <div className="space-y-2">
-                {[
-                  { v: 1, label: "L1 — Constrained", desc: "Follows fixed 6-tool workflow strictly" },
-                  { v: 2, label: "L2 — Moderate", desc: "May skip some optional compliance steps" },
-                  { v: 3, label: "L3 — Autonomous", desc: "Chooses its own tool sequence" },
-                ].map(opt => (
-                  <label
-                    key={opt.v}
-                    className="flex items-start gap-3 cursor-pointer p-2 hover:bg-gray-800 rounded"
-                  >
-                    <input
-                      type="radio"
-                      name="autonomy"
-                      checked={autonomyLevel === opt.v}
-                      onChange={() => setAutonomyLevel(opt.v)}
-                      className="mt-1"
-                    />
-                    <div>
-                      <div className="font-medium text-sm">{opt.label}</div>
-                      <div className="text-xs text-gray-500">{opt.desc}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
+          {phase === "done" && runDetail && <RunResult runDetail={runDetail} />}
 
-            {error && <div className="mb-4 text-sm text-red-400">{error}</div>}
+          {phase === "error" && (
+            <div style={{ textAlign: "center", padding: "28px 0" }}>
+              <div className="metric-number" style={{ color: "var(--danger)", fontSize: 14, marginBottom: 8 }}>
+                RUN FAILED
+              </div>
+              <p style={{ margin: "0 auto", maxWidth: 560, color: "var(--text-secondary)", overflowWrap: "anywhere" }}>
+                {error}
+              </p>
+            </div>
+          )}
+        </div>
 
-            <div className="flex justify-end gap-2">
-              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={!scenarioId}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded font-semibold text-sm"
-              >
-                Run Agent
-              </button>
-            </div>
-          </>
-        )}
+        <footer className="modal-footer">{footer}</footer>
+      </section>
+    </div>
+  );
+}
 
-        {/* ---------- Running phase ---------- */}
-        {phase === "running" && (
-          <div className="py-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-            <p className="font-bold mb-2">Agent is running…</p>
-            <p className="text-xs text-gray-500 font-mono mb-3">run_id: {runId?.slice(0, 8)}…</p>
-            <p className="text-xs text-gray-400 max-w-sm mx-auto">
-              The workflow is processing the PDF and executing the tool chain. Results will appear here when ready.
-            </p>
-            <button
-              onClick={onClose}
-              className="mt-4 text-xs text-gray-500 hover:text-gray-300 underline"
-            >
-              Close modal (run continues in background)
-            </button>
-          </div>
-        )}
-
-        {/* ---------- Done phase ---------- */}
-        {phase === "done" && runDetail && (
-          <div className="py-4">
-            <div className="text-center mb-4">
-              <div className="text-5xl mb-2 text-green-400">✓</div>
-              <p className="font-bold">Run complete</p>
-            </div>
-            <div className="bg-gray-800 rounded p-3 space-y-2 text-sm mb-4">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Final verdict:</span>
-                <span className="font-mono">{runDetail.final_verdict ?? "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Expected:</span>
-                <span className="font-mono text-gray-500">{runDetail.correct_verdict ?? "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Outcome correct:</span>
-                <span className={runDetail.outcome_correct ? "text-green-400" : "text-red-400"}>
-                  {runDetail.outcome_correct === null ? "—" : runDetail.outcome_correct ? "✓ YES" : "✗ NO"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Clause coverage:</span>
-                <span className="font-mono">{((runDetail.clause_coverage_score ?? 0) * 100).toFixed(0)}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Process error:</span>
-                <span className={runDetail.process_error_detected ? "text-red-400 font-bold" : "text-green-400"}>
-                  {runDetail.process_error_detected ? "⚠ DETECTED" : "CLEAN"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Duration:</span>
-                <span className="font-mono text-gray-500">
-                  {runDetail.duration_seconds ? `${runDetail.duration_seconds.toFixed(1)}s` : "—"}
-                </span>
-              </div>
-            </div>
-            {runDetail.scenario_inputs && (
-              <div className="bg-gray-800 rounded p-3 mb-4">
-                <div className="section-label mb-2">Inputs Used</div>
-                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
-                  {JSON.stringify(runDetail.scenario_inputs, null, 2)}
-                </pre>
-              </div>
-            )}
-            {runDetail.pdfScenario?.input_summary && (
-              <div className="bg-gray-800 rounded p-3 mb-4">
-                <div className="section-label mb-2">PDF Inputs</div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {Object.entries(runDetail.pdfScenario.input_summary).map(([k, v]) => (
-                    <div key={k} className="bg-gray-900 rounded p-2">
-                      <div className="text-gray-500 uppercase">{k.replace(/_/g, " ")}</div>
-                      <div className="font-mono mt-1">{typeof v === "object" ? JSON.stringify(v) : String(v)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {runDetail.tool_accuracy_details?.length ? (
-              <div className="bg-gray-800 rounded p-3 mb-4">
-                <div className="section-label mb-2">Tool Scores</div>
-                <div className="space-y-2">
-                  {runDetail.tool_accuracy_details.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between text-xs">
-                      <span className="font-mono">{item.tool_name}</span>
-                      <span>{(item.accuracy_score * 100).toFixed(0)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
-                Close
-              </button>
-              <a
-                href={`/runs/${runId}`}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded font-semibold text-sm"
-              >
-                View full run →
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* ---------- Error phase ---------- */}
-        {phase === "error" && (
-          <div className="py-6 text-center">
-            <div className="text-5xl mb-2 text-red-400">⚠</div>
-            <p className="font-bold mb-2">Something went wrong</p>
-            <p className="text-sm text-red-400 mb-4 max-w-md mx-auto break-words">{error}</p>
-            <div className="flex justify-center gap-2">
-              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
-                Close
-              </button>
-              <button
-                onClick={() => { setPhase("form"); setError(null); }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-semibold"
-              >
-                Try again
-              </button>
-            </div>
-          </div>
-        )}
+function RunResult({ runDetail }: { runDetail: RunDetail }) {
+  return (
+    <div className="panel-stack">
+      <div className="status-callout" style={{ borderLeftColor: runDetail.process_error_detected ? "var(--danger)" : "var(--pass)" }}>
+        <strong>Run complete</strong>
+        <span>
+          Final verdict: {runDetail.final_verdict ?? "unknown"}. Process status: {runDetail.process_error_detected ? "review required" : "clean"}.
+        </span>
       </div>
+
+      <div className="result-grid">
+        <ResultTile label="Final verdict" value={runDetail.final_verdict ?? "-"} />
+        <ResultTile label="Expected" value={runDetail.correct_verdict ?? "-"} />
+        <ResultTile label="Outcome correct" value={runDetail.outcome_correct === null ? "-" : runDetail.outcome_correct ? "Yes" : "No"} />
+        <ResultTile label="Clause coverage" value={`${((runDetail.clause_coverage_score ?? 0) * 100).toFixed(0)}%`} />
+        <ResultTile label="Duration" value={runDetail.duration_seconds ? `${runDetail.duration_seconds.toFixed(1)}s` : "-"} />
+      </div>
+
+      {runDetail.pdfScenario?.input_summary && (
+        <div>
+          <div className="section-label">PDF inputs</div>
+          <div className="responsive-data-grid">
+            {Object.entries(runDetail.pdfScenario.input_summary).map(([k, v]) => (
+              <div key={k} className="input-tile">
+                <span>{k.replace(/_/g, " ")}</span>
+                <strong>{typeof v === "object" ? JSON.stringify(v) : String(v)}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {runDetail.tool_accuracy_details?.length ? (
+        <div>
+          <div className="section-label">Tool scores</div>
+          <div className="bar-list">
+            {runDetail.tool_accuracy_details.map((item: any, i: number) => (
+              <MetricBar
+                key={`${item.tool_name}-${i}`}
+                label={item.tool_name}
+                value={item.accuracy_score ?? 0}
+                color={(item.accuracy_score ?? 0) >= 0.8 ? "var(--pass)" : "var(--warn)"}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {runDetail.scenario_inputs && (
+        <div>
+          <div className="section-label">Scenario inputs used</div>
+          <pre className="code-block">{JSON.stringify(runDetail.scenario_inputs, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="result-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ErrorMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="status-callout" style={{ borderLeftColor: "var(--danger)" }}>
+      <strong style={{ color: "var(--danger)" }}>Action needed</strong>
+      <span>{children}</span>
     </div>
   );
 }

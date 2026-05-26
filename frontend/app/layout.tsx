@@ -2,12 +2,24 @@
 
 import './globals.css'
 
+const navItems = [
+  { href: '/', label: 'Dashboard', code: 'DB' },
+  { href: '/defense', label: 'Defense Mode', code: 'TH' },
+  { href: '/runs', label: 'Agent Runs', code: 'AR' },
+  { href: '/registry', label: 'Registry', code: 'RG' },
+  { href: '/trust', label: 'Trust Study', code: 'TS' },
+]
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <title>Covenant Intelligence Platform</title>
-        <meta name="description" content="Loan Covenant Breach Early Warning — Deutsche Bank Thesis Project" />
+        <meta
+          name="description"
+          content="Loan Covenant Breach Early Warning - Deutsche Bank Thesis Project"
+        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -15,76 +27,33 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body style={{ margin: 0, background: '#0A0E1A', color: '#F9FAFB', fontFamily: "'IBM Plex Sans', sans-serif" }}>
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
-          {/* Sidebar */}
-          <aside style={{
-            width: '220px',
-            background: '#0D1220',
-            borderRight: '1px solid #1F2937',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'fixed',
-            height: '100vh',
-            zIndex: 10,
-          }}>
-            <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid #1F2937' }}>
-              <div style={{
-                background: '#003882',
-                color: 'white',
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontWeight: 600,
-                fontSize: '11px',
-                letterSpacing: '0.08em',
-                padding: '6px 10px',
-                marginBottom: '10px',
-                borderRadius: '2px',
-              }}>DEUTSCHE BANK</div>
-              <div style={{ fontSize: '12px', color: '#6B7280', lineHeight: 1.4 }}>
-                Covenant Intelligence<br />Platform
-              </div>
-            </div>
-            <nav style={{ padding: '16px 12px', flex: 1 }}>
-              {[
-                { href: '/', label: 'Dashboard', icon: '◉' },
-                { href: '/runs', label: 'Agent Runs', icon: '▷' },
-                { href: '/registry', label: 'Agent Registry', icon: '⬡' },
-              ].map(({ href, label, icon }) => (
-                <a key={href} href={href} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '10px 12px',
-                  borderRadius: '4px',
-                  color: '#9CA3AF',
-                  textDecoration: 'none',
-                  fontSize: '13px',
-                  marginBottom: '2px',
-                  transition: 'all 0.15s',
-                }}
-                  onMouseOver={e => {
-                    (e.currentTarget as HTMLElement).style.background = '#1F2937'
-                    ;(e.currentTarget as HTMLElement).style.color = '#F9FAFB'
-                  }}
-                  onMouseOut={e => {
-                    (e.currentTarget as HTMLElement).style.background = 'transparent'
-                    ;(e.currentTarget as HTMLElement).style.color = '#9CA3AF'
-                  }}
-                >
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px' }}>{icon}</span>
-                  {label}
+      <body>
+        <div className="app-shell">
+          <aside className="app-sidebar" aria-label="Primary navigation">
+            <a className="app-brand" href="/">
+              <span className="app-brand-mark">DB</span>
+              <span>
+                <span className="app-brand-name">Covenant Intelligence</span>
+                <span className="app-brand-subtitle">Thesis demo build</span>
+              </span>
+            </a>
+
+            <nav className="app-nav">
+              {navItems.map(({ href, label, code }) => (
+                <a key={href} href={href} className="app-nav-link">
+                  <span className="app-nav-code">{code}</span>
+                  <span>{label}</span>
                 </a>
               ))}
             </nav>
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #1F2937', fontSize: '10px', color: '#4B5563', fontFamily: "'IBM Plex Mono', monospace" }}>
-              v1.0 · THESIS BUILD
+
+            <div className="app-sidebar-footer">
+              <span>v1.0</span>
+              <span>Process transparency</span>
             </div>
           </aside>
 
-          {/* Main content */}
-          <main style={{ marginLeft: '220px', flex: 1, minHeight: '100vh' }}>
-            {children}
-          </main>
+          <main className="app-main">{children}</main>
         </div>
       </body>
     </html>
