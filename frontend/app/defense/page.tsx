@@ -245,7 +245,7 @@ export default function DefensePage() {
           <div className="status-callout" style={{ marginBottom: 20, borderLeftColor: 'var(--warn)' }}>
             <strong>H3/H4 evidence source: {trustSource}</strong>
             <span>
-              The trust-study numbers below are presentation/demo evidence generated for the pilot workflow.
+              The trust-study numbers below are synthetic pilot evidence generated for the workflow.
               Replace or separate them from human survey responses before making final thesis claims.
             </span>
           </div>

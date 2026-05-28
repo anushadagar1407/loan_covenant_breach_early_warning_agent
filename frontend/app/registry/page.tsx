@@ -145,9 +145,11 @@ export default function RegistryPage() {
               className="status-callout"
               style={{ marginBottom: 18, borderLeftColor: summary.evidence_quality.minimum_runs_met ? 'var(--pass)' : 'var(--warn)' }}
             >
-              <strong>Evidence quality: {summary.evidence_quality.minimum_runs_met ? 'sample threshold met' : 'exploratory sample'}</strong>
+              <strong>Evidence quality: {summary.evidence_quality.minimum_runs_met ? 'evaluation threshold met' : 'exploratory cohort'}</strong>
               <span>
-                Fallback runs: {summary.evidence_quality.ground_truth_fallback_runs}. H3/H4 require trust responses.
+                Ground-truth fallback runs: {summary.evidence_quality.ground_truth_fallback_runs}.
+                ADK-attempted runs: {summary.evidence_quality.adk_invocation_attempted_runs ?? 0}.
+                H3/H4 require stakeholder trust responses.
               </span>
             </div>
           )}
@@ -234,7 +236,7 @@ export default function RegistryPage() {
             </div>
           ) : (
             <div style={{ color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--mono)', padding: '12px 20px 24px', textAlign: 'center' }}>
-              No H1 evidence runs yet. Run a high-autonomy scenario to generate evidence.
+              No hidden-gap runs have been recorded yet. Run balanced L1, L2, and L3 scenarios before interpreting H1.
             </div>
           )}
         </div>

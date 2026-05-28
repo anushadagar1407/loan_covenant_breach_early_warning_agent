@@ -4,7 +4,7 @@ import './globals.css'
 
 const navItems = [
   { href: '/', label: 'Dashboard', code: 'DB' },
-  { href: '/defense', label: 'Defense Mode', code: 'TH' },
+  { href: '/defense', label: 'Thesis Evidence', code: 'TH' },
   { href: '/runs', label: 'Agent Runs', code: 'AR' },
   { href: '/registry', label: 'Registry', code: 'RG' },
   { href: '/trust', label: 'Trust Study', code: 'TS' },
@@ -20,12 +20,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           content="Loan Covenant Breach Early Warning - Deutsche Bank Thesis Project"
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
         <div className="app-shell">
@@ -34,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="app-brand-mark">DB</span>
               <span>
                 <span className="app-brand-name">Covenant Intelligence</span>
-                <span className="app-brand-subtitle">Thesis demo build</span>
+                <span className="app-brand-subtitle">Evaluation framework</span>
               </span>
             </a>
 

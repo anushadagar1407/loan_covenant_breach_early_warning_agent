@@ -206,7 +206,7 @@ export default function TrustStudyPage() {
           <div className="status-callout" style={{ marginBottom: 20, borderLeftColor: 'var(--warn)' }}>
             <strong>{sourceLabel}</strong>
             <span>
-              These H3/H4 values are generated for a dashboard pilot demonstration. Keep them separate from real stakeholder responses in the final thesis analysis.
+              These H3/H4 values are synthetic pilot data for validating the dashboard mechanics. Keep them separate from real stakeholder responses in the final thesis analysis.
             </span>
           </div>
         )}

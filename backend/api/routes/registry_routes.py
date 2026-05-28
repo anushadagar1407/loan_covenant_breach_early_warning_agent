@@ -1,4 +1,4 @@
-"""UPDATED API routes with statistical endpoints"""
+"""Registry API routes with statistical thesis-evidence endpoints."""
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.db import get_db 

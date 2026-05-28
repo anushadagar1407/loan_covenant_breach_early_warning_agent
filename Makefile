@@ -1,6 +1,6 @@
-.PHONY: install install-backend install-frontend pdfs backend frontend dev clean
+.PHONY: install install-backend install-frontend pdfs seed-pilot-runs seed-trust-pilot backend frontend dev clean
 
-# ── Setup ─────────────────────────────────────────────────────────────────────
+# Setup
 
 install: install-backend install-frontend
 
@@ -10,28 +10,33 @@ install-backend:
 install-frontend:
 	cd frontend && npm install
 
-# ── Data ──────────────────────────────────────────────────────────────────────
+# Data
 
 pdfs:
 	cd backend && python scripts/generate_pdfs.py
 
-# ── Run ───────────────────────────────────────────────────────────────────────
- python scripts/seed_demo_runs.py
+seed-pilot-runs:
+	cd backend && python scripts/seed_demo_runs.py
+
+seed-trust-pilot:
+	cd backend && python scripts/seed_synthetic_trust_pilot.py
+
+# Run
+
 backend:
 	cd backend && uvicorn api.main:app --reload --port 8000
 
 frontend:
 	cd frontend && npm run dev
 
-# Run both in parallel (requires two terminals, or use GNU parallel / tmux)
 dev:
 	@echo "Starting backend on :8000 and frontend on :3000"
 	@echo "Run 'make backend' and 'make frontend' in separate terminals."
 
-# ── Utility ───────────────────────────────────────────────────────────────────
+# Utility
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
-	rm -f backend/covenant_breach.db
+	rm -f backend/data/covenant_agent.db
 	@echo "Cleaned."

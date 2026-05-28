@@ -1,8 +1,8 @@
 """
 seed_demo_runs.py
 =================
-Seeds the database with simulated agent runs for all 10 scenarios
-across all 3 autonomy levels. Used for thesis demos and dashboard population.
+Seeds the database with controlled pilot runs for all 10 scenarios
+across all 3 autonomy levels. Used for thesis validation walkthroughs.
 
 Run: python scripts/seed_demo_runs.py
 
@@ -73,6 +73,12 @@ async def save_run(db_session, result: dict):
         "tool_call_accuracy_score": result["tool_call_accuracy_score"],
         "clause_coverage_score": result["clause_coverage_score"],
         "process_error_detected": result["process_error_detected"],
+        "data_source": result.get("data_source"),
+        "ground_truth_fallback_used": result.get("ground_truth_fallback_used", False),
+        "transparency_artifacts_present": result.get("transparency_artifacts_present", False),
+        "execution_mode": result.get("execution_mode"),
+        "adk_invocation_attempted": result.get("research_signals", {}).get("adk_invocation_attempted", False),
+        "deterministic_fallback_used": result.get("research_signals", {}).get("deterministic_fallback_used", False),
         "adjustment_clause_checked": result["adjustment_clause_checked"],
         "grace_period_clause_checked": result["grace_period_clause_checked"],
         "adjustment_changes_verdict": result["adjustment_changes_verdict"],
@@ -112,7 +118,7 @@ async def main():
     total = 0
     errors = 0
 
-    print("Seeding demo runs (10 scenarios × 3 autonomy levels = 30 runs)\n")
+    print("Seeding controlled pilot runs (10 scenarios x 3 autonomy levels = 30 runs)\n")
 
     for level in [1, 2, 3]:
         for i, scen in enumerate(gt["scenarios"][:10]):  # keep 10 scenarios if you want 30 runs

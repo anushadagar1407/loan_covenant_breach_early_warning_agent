@@ -1,11 +1,11 @@
 """
 seed_synthetic_trust_pilot.py
 =============================
-Create a clearly labeled synthetic trust-study pilot for dashboard demos.
+Create a clearly labeled synthetic trust-study pilot for dashboard validation.
 
 This does not create real stakeholder evidence. Rows are stored with
 response_source="synthetic_demo" so the dashboard can present H3/H4 mechanics
-without confusing demo data with actual survey responses.
+without confusing synthetic data with actual survey responses.
 
 Run from backend:
     python scripts/seed_synthetic_trust_pilot.py
@@ -118,7 +118,7 @@ async def main():
                             transparency_condition=condition,
                             response_source="synthetic_demo",
                             comments=(
-                                "Synthetic demo response for thesis dashboard; "
+                                "Synthetic pilot response for thesis dashboard; "
                                 "not collected from a real stakeholder."
                             ),
                             **scores,

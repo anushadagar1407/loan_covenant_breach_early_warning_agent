@@ -146,6 +146,14 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
                 <span className={`badge ${run.transparency_artifacts_present ? 'badge-pass' : 'badge-warn'}`}>
                   {run.transparency_artifacts_present ? 'transparent trace' : 'trace incomplete'}
                 </span>
+                {run.execution_mode && (
+                  <span className={`badge ${run.adk_invocation_attempted ? 'badge-blue' : 'badge-grey'}`}>
+                    {run.execution_mode.replace(/_/g, ' ')}
+                  </span>
+                )}
+                {run.deterministic_fallback_used && (
+                  <span className="badge badge-warn">deterministic fallback</span>
+                )}
               </div>
             </div>
             <div style={{ textAlign: 'right', minWidth: 180 }}>
@@ -231,10 +239,10 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
             ))}
           </div>
           <div className="pill-row" style={{ marginTop: 20, fontSize: 11, color: 'var(--text-muted)' }}>
-            <span><span style={{ color: 'var(--pass)' }}>● </span>Called and succeeded</span>
-            <span><span style={{ color: 'var(--danger)' }}>● </span>Called with error</span>
-            <span><span style={{ color: 'var(--text-muted)' }}>○ </span>Skipped or not called</span>
-            <span><span style={{ color: 'var(--warn)' }}>★ </span>Critical step</span>
+            <span><span style={{ color: 'var(--pass)' }}>OK </span>Called and succeeded</span>
+            <span><span style={{ color: 'var(--danger)' }}>ERR </span>Called with error</span>
+            <span><span style={{ color: 'var(--text-muted)' }}>SKIP </span>Skipped or not called</span>
+            <span><span style={{ color: 'var(--warn)' }}>CRITICAL </span>Required H1 step</span>
           </div>
         </div>
 

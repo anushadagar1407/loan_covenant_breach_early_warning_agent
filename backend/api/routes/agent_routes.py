@@ -89,6 +89,10 @@ async def _upsert_run_row(db, run_id: str, scenario: dict, autonomy_level: int, 
         run.data_source = run_result.get("data_source", run.data_source)
         run.ground_truth_fallback_used = run_result.get("ground_truth_fallback_used", run.ground_truth_fallback_used)
         run.transparency_artifacts_present = run_result.get("transparency_artifacts_present", False)
+        run.execution_mode = run_result.get("execution_mode")
+        signals = run_result.get("research_signals", {})
+        run.adk_invocation_attempted = bool(signals.get("adk_invocation_attempted", False))
+        run.deterministic_fallback_used = bool(signals.get("deterministic_fallback_used", False))
         run.adjustment_clause_checked = run_result.get("adjustment_clause_checked", False)
         run.grace_period_clause_checked = run_result.get("grace_period_clause_checked", False)
         run.adjustment_changes_verdict = run_result.get("adjustment_changes_verdict", False)
@@ -349,6 +353,9 @@ async def _execute_multi_run(run_id: str, pdf_path: str, borrower_id: str, confi
             final_verdict="multi_agent_completed",
             status=run_result.get("status", "completed"),
             error_message=run_result.get("error"),
+            execution_mode="multi_agent_adk",
+            adk_invocation_attempted=True,
+            deterministic_fallback_used=bool(run_result.get("pipeline_result", {}).get("fallback")),
             pipeline_result_json=json.dumps(run_result.get("pipeline_result", {}), default=str),
         )
         db.add(run)

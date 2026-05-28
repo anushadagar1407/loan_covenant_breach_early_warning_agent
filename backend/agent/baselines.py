@@ -6,6 +6,7 @@ Baseline implementations for comparison.
 
 import os
 import json
+import logging
 from pathlib import Path
 from typing import Dict
 
@@ -17,6 +18,8 @@ from agent.tools import (
     calculate_breach_risk,
     generate_report,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RuleBasedBaseline:
@@ -59,7 +62,7 @@ class RuleBasedBaseline:
 class SingleShotLLMBaseline:
     """Single-prompt LLM without tool use."""
     
-    def __init__(self, ollama_model: str = "llama2:7b"):
+    def __init__(self, ollama_model: str = "llama3.1:8b"):
         self.name = "Single-Shot LLM Baseline"
         self.ollama_model = ollama_model
     
@@ -114,7 +117,7 @@ Determine breach status. Output ONLY ONE WORD: breach, breach_curable, imminent,
             else:
                 verdict = "error"
         except Exception as e:
-            print(f"Error: {e}")
+            logger.warning("Single-shot LLM baseline failed: %s", e)
             verdict = "error"
         
         return {

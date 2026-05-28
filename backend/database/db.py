@@ -49,6 +49,9 @@ async def _ensure_agent_run_columns(conn):
         "ground_truth_fallback_used": "BOOLEAN DEFAULT 0",
         "experiment_condition": "VARCHAR(50) DEFAULT 'standard'",
         "transparency_artifacts_present": "BOOLEAN DEFAULT 0",
+        "execution_mode": "VARCHAR(50)",
+        "adk_invocation_attempted": "BOOLEAN DEFAULT 0",
+        "deterministic_fallback_used": "BOOLEAN DEFAULT 0",
     }
     for name, ddl in columns.items():
         if name not in existing:

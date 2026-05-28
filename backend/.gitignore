@@ -3,8 +3,3 @@
 __pycache__/
 *.pyc
 data/*.db
-
-.venv/
-__pycache__/
-*.pyc
-data/*.db

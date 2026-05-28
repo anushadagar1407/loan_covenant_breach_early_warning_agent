@@ -70,7 +70,7 @@ def extract_financial_metrics(pdf_path: str, borrower_id: str) -> dict:
         )
 
         # Fallback is provenance-tagged and disabled by default for evaluation runs.
-        # Enable ALLOW_GROUND_TRUTH_FALLBACK=1 for demo recovery from parser misses.
+        # Enable ALLOW_GROUND_TRUTH_FALLBACK=1 only for clearly labeled pilot recovery from parser misses.
         main_fields = (
             "total_debt",
             "reported_ebitda",

@@ -47,6 +47,9 @@ class AgentRun(Base):
     ground_truth_fallback_used = Column(Boolean, default=False)
     experiment_condition = Column(String(50), default="standard")
     transparency_artifacts_present = Column(Boolean, default=False)
+    execution_mode = Column(String(50))
+    adk_invocation_attempted = Column(Boolean, default=False)
+    deterministic_fallback_used = Column(Boolean, default=False)
 
     # Clause-level flags
     adjustment_clause_checked = Column(Boolean, default=False)
@@ -81,6 +84,9 @@ class AgentRun(Base):
             "ground_truth_fallback_used": self.ground_truth_fallback_used,
             "experiment_condition": self.experiment_condition,
             "transparency_artifacts_present": self.transparency_artifacts_present,
+            "execution_mode": self.execution_mode,
+            "adk_invocation_attempted": self.adk_invocation_attempted,
+            "deterministic_fallback_used": self.deterministic_fallback_used,
             "adjustment_clause_checked": self.adjustment_clause_checked,
             "grace_period_clause_checked": self.grace_period_clause_checked,
             "adjustment_changes_verdict": self.adjustment_changes_verdict,
@@ -113,6 +119,8 @@ class ToolCallEvent(Base):
             "called_at": self.called_at.isoformat() if self.called_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "latency_ms": self.latency_ms,
+            "args_json": self.args_json,
+            "result_json": self.result_json,
             "accuracy_score": self.accuracy_score,
             "error": self.error,
         }
@@ -133,6 +141,7 @@ class AuditLogEntry(Base):
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "event_type": self.event_type,
             "message": self.message,
+            "metadata_json": self.metadata_json,
         }
 
 
