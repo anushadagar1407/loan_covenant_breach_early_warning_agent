@@ -46,10 +46,10 @@ The primary source is the local PDF pipeline:
 - input reports are stored in `backend/data/synthetic_pdfs/`
 - scenario metadata is derived from the PDF filename and parsed PDF contents
 - covenant and borrower policy data comes from `backend/data/borrower_profiles.json`
-- extraction provenance is saved with every run so thesis analysis can separate clean PDF parses from unverified parser results or demo fallback data
+- extraction provenance is saved with every run so thesis analysis can separate clean PDF parses from unverified parser results or ground-truth fallback data
 
 Ground-truth fallback is disabled by default for evaluation integrity. To use
-canonical generated values for demos when PDF parsing is incomplete, set:
+canonical generated values for clearly labeled pilot recovery when PDF parsing is incomplete, set:
 
 ```bash
 ALLOW_GROUND_TRUTH_FALLBACK=1
@@ -110,7 +110,7 @@ ollama serve
 Optional model pull:
 
 ```bash
-ollama pull llama3.2:3b
+ollama pull llama3.1:8b
 ```
 
 ### 2. Backend setup
@@ -193,7 +193,7 @@ Fetch trust-study analysis:
 curl http://localhost:8000/api/trust/analysis
 ```
 
-For a presentation-only H3/H4 demo, seed clearly labeled synthetic responses:
+For a presentation-only H3/H4 pilot, seed clearly labeled synthetic responses:
 
 ```bash
 cd backend
@@ -223,14 +223,21 @@ This mode is the control condition for reproducibility.
 
 ### L2 / L3
 
-`L2` and `L3` use the ADK/Ollama path.
+`L2` and `L3` use the ADK/Ollama path by default. Set `USE_LLM_AGENT=0`
+only when you need a deterministic reproducibility run without model calls.
+If the local model is unavailable or exceeds `ADK_RUN_TIMEOUT_SECONDS`, the
+run is marked as `adk_fallback` and the deterministic recovery path is recorded
+in the audit log.
 
 Guardrails:
 
 - only registered tools are allowed
+- ADK `before_tool_callback`, `after_tool_callback`, and `on_tool_error_callback`
+  persist real tool-call traces for thesis metrics
 - invalid tool calls are trapped
 - if the model emits an invalid tool name, the run falls back to deterministic execution
-- if model execution fails, the error is persisted and exposed in the run record
+- if model execution fails, the error is persisted and the deterministic fallback
+  is labeled in the run record
 
 ## Important files
 
@@ -297,6 +304,9 @@ Each run should support your thesis analysis through:
 - `ground_truth_fallback_used`
 - `experiment_condition`
 - `transparency_artifacts_present`
+- `execution_mode`
+- `adk_invocation_attempted`
+- `deterministic_fallback_used`
 - `tool_accuracy_details`
 - `clause_coverage_details`
 - `research_signals`
@@ -305,7 +315,7 @@ Each run should support your thesis analysis through:
 
 The dashboard now distinguishes exploratory evidence from stronger evaluation
 evidence. H1/H2 labels should be treated as exploratory until enough runs exist
-and demo fallback runs are excluded from the analysis cohort.
+and synthetic or fallback rows are excluded from the analysis cohort.
 
 H3 and H4 are now instrumented but not automatically proven. They require
 stored stakeholder trust responses under outcome-only and transparent
