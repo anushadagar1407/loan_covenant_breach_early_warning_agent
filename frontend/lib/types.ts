@@ -1,5 +1,3 @@
-/* UPDATED TypeScript types */
-
 export interface H1Validation {
   hypothesis: string;
   gap_score_mean: number;
@@ -44,6 +42,8 @@ export interface ClassificationMetrics {
 
 export interface RegistrySummary {
   total_runs: number;
+  evaluated_runs?: number;
+  running_or_incomplete_runs?: number;
   gap_score: number;
   process_error_rate: number;
   outcome_error_rate: number;
@@ -63,6 +63,9 @@ export interface RegistrySummary {
     ground_truth_fallback_runs: number;
     ground_truth_fallback_rate: number;
     transparency_artifact_rate: number;
+    adk_invocation_attempted_runs?: number;
+    adk_invocation_rate?: number;
+    deterministic_fallback_runs?: number;
     note: string;
   };
   h3_validation?: { status: string; message: string };
@@ -117,6 +120,9 @@ export interface AgentRun {
   ground_truth_fallback_used?: boolean;
   experiment_condition?: string;
   transparency_artifacts_present?: boolean;
+  execution_mode?: string | null;
+  adk_invocation_attempted?: boolean;
+  deterministic_fallback_used?: boolean;
   pdfScenario?: Scenario;
   scenario_inputs?: Record<string, any> | null;
 }

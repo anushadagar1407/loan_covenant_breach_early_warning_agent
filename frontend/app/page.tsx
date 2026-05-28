@@ -59,8 +59,8 @@ export default function Dashboard() {
   const h2 = summary?.h2_validation;
   const cm = summary?.classification_metrics;
   const evidenceLabel = summary?.evidence_quality?.minimum_runs_met
-    ? "Sample threshold met"
-    : "Exploratory sample";
+    ? "Evaluation threshold met"
+    : "Exploratory cohort";
 
   return (
     <div className="dashboard-page">
@@ -70,7 +70,7 @@ export default function Dashboard() {
             <div className="eyebrow">Covenant Intelligence Platform</div>
             <h1 id="dashboard-title">Process-aware breach detection for defensible agent evaluation.</h1>
             <p>
-              A thesis demo dashboard for comparing outcome accuracy against process reliability,
+              A thesis evaluation dashboard for comparing outcome accuracy against process reliability,
               clause coverage, and autonomy-driven risk.
             </p>
           </div>
@@ -96,9 +96,9 @@ export default function Dashboard() {
         {summary && h1 && (
           <section className="metric-grid" style={{ marginTop: 18 }} aria-label="Top dashboard metrics">
             <MetricCard
-              title="Total Runs"
-              value={summary.total_runs}
-              subtitle={evidenceLabel}
+              title="Evaluated Runs"
+              value={summary.evaluated_runs ?? summary.total_runs}
+              subtitle={`${summary.running_or_incomplete_runs ?? 0} running or incomplete`}
               tone="neutral"
             />
             <MetricCard
@@ -129,7 +129,9 @@ export default function Dashboard() {
           >
             <strong>Evidence quality: {evidenceLabel}</strong>
             <span>
-              Ground-truth fallback runs: {summary.evidence_quality.ground_truth_fallback_runs}. H3/H4 trust signals remain separate from process metrics.
+              ADK-attempted runs: {summary.evidence_quality.adk_invocation_attempted_runs ?? 0}.
+              Deterministic fallback runs: {summary.evidence_quality.deterministic_fallback_runs ?? 0}.
+              H3/H4 trust signals remain separate from process metrics.
             </span>
           </div>
         )}
@@ -156,14 +158,17 @@ export default function Dashboard() {
                     <StatRow label="Cohen's d" value={`${h1.cohens_d.toFixed(3)} (${h1.effect_size_interpretation})`} />
                   </div>
                 </div>
-                <div className="status-callout" style={{ borderLeftColor: h1.significant_at_0_05 ? "var(--pass)" : "var(--warn)" }}>
+              <div className="status-callout" style={{ borderLeftColor: h1.significant_at_0_05 ? "var(--pass)" : "var(--warn)" }}>
                   <strong>{h1.conclusion}</strong>
                   <span>
+                    H1 tests whether outcome-only evaluation misses process risk. In this workflow,
+                    a run supports H1 when the final covenant verdict is correct but the audit trace
+                    shows skipped required checks such as accounting adjustments or grace-period review.
                     {summary.evidence_quality?.minimum_runs_met
                       ? h1.significant_at_0_05
-                        ? "H1 signal is present in the current registry."
-                        : "H1 is not supported by the current sample."
-                      : "Use this as exploratory evidence until more runs are collected."}
+                        ? " The current completed-run cohort contains a statistically significant hidden-risk signal."
+                        : " The current completed-run cohort is not yet statistically conclusive; inspect clause coverage and add balanced L1-L3 runs before making a final thesis claim."
+                      : " Treat this panel as exploratory until the completed-run threshold is met."}
                   </span>
                 </div>
               </div>
@@ -204,13 +209,13 @@ export default function Dashboard() {
             )}
           </div>
 
-          <aside className="panel-stack" aria-label="Autonomy and demo workflow">
+          <aside className="panel-stack" aria-label="Autonomy and workflow controls">
             {h2 && (
               <section className="card card-pad" aria-labelledby="h2-title">
               <div className="section-label">H2 validation</div>
               <h2 id="h2-title" className="page-title">Autonomy vs. process errors</h2>
               <p className="page-subtitle">
-                A defense-ready demo should make the autonomy tradeoff visible without overloading the screen.
+                The dashboard makes the autonomy tradeoff visible without overloading the screen.
               </p>
               <div className="level-bars" style={{ marginTop: 18 }}>
                 {h2.level_1_error_rate !== undefined && <LevelBar level="L1" errorRate={h2.level_1_error_rate} />}
@@ -223,14 +228,14 @@ export default function Dashboard() {
               </div>
               <div className="status-callout" style={{ marginTop: 16, borderLeftColor: "var(--accent)" }}>
                 <strong>{h2.conclusion}</strong>
-                <span>Use L1/L2/L3 runs in sequence during the live demo to show the process-risk gradient.</span>
+                <span>Use L1/L2/L3 runs in sequence to show the process-risk gradient.</span>
               </div>
               </section>
             )}
 
-            <section className="card card-pad" aria-labelledby="demo-title">
+            <section className="card card-pad" aria-labelledby="workflow-title">
               <div className="section-label">Live workflow</div>
-              <h2 id="demo-title" className="page-title">Run a controlled scenario</h2>
+              <h2 id="workflow-title" className="page-title">Run a controlled scenario</h2>
               <p className="page-subtitle">
                 The launcher now keeps setup, progress, and results inside a viewport-safe modal with fixed actions.
               </p>
