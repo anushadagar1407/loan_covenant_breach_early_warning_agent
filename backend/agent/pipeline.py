@@ -7,6 +7,7 @@ Coordinates Agent 1 → Agent 2 → Agent 3.
 
 import asyncio
 import json
+import logging
 from typing import Dict, Any, Optional
 from agent.schemas import DocumentInput, ReducedDocumentOutput, ExtractedDataOutput, AnalysisOutput, PipelineConfig
 from agent.multi_agents import create_document_intelligence_agent, create_data_extraction_agent, create_analysis_agent
@@ -16,6 +17,8 @@ from agent.tools.analysis import analyze_trends, generate_insights, generate_rec
 
 from google.adk.runners import InMemoryRunner
 from google.genai import types as genai_types
+
+logger = logging.getLogger(__name__)
 
 
 class FinancialAnalysisPipeline:
@@ -106,11 +109,11 @@ class FinancialAnalysisPipeline:
                 return json.loads(final_text)
             except json.JSONDecodeError:
                 debug_text = final_text.strip()
-                print(f"DEBUG agent output for {agent_name}: {debug_text}")
+                logger.warning("Invalid JSON output from %s: %s", agent_name, debug_text)
                 return {"error": f"Invalid JSON output from {agent_name}: {debug_text}"}
 
         except Exception as e:
-            print(f"Error in {agent_name}: {e}")
+            logger.exception("Pipeline agent %s failed", agent_name)
             return {"error": str(e)}
 
     def _output_failed(self, output: Dict[str, Any]) -> bool:

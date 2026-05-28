@@ -16,8 +16,12 @@ ADK Setup:
 """
 
 import os
+
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
+from google.genai import types as genai_types
 
 from agent.tools import (
     extract_financial_metrics,
@@ -81,7 +85,7 @@ def create_covenant_agent(
 
     Args:
     autonomy_level: Integer 1, 2, or 3.
-    ollama_model: Optional Ollama model string like 'llama2:7b'.
+    ollama_model: Optional Ollama model string like 'llama3.1:8b'.
 
     Returns:
     Configured google.adk.agents.Agent instance.
@@ -96,24 +100,21 @@ def create_covenant_agent(
         raise ValueError(f"autonomy_level must be 1, 2, or 3. Got: {autonomy_level}")
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    model_name = (ollama_model or os.getenv("OLLAMA_MODEL", "llama3.2:3b")).removeprefix("ollama/")
+    model_name = (ollama_model or os.getenv("OLLAMA_MODEL", "llama3.1:8b")).removeprefix("ollama/")
 
-    # Strip scheme from OLLAMA_HOST for LiteLLM (avoid SSL context issues)
-    api_base = ollama_host.replace("https://", "").replace("http://", "")
-    if not api_base.startswith("http"):
-        api_base = f"http://{api_base}"
+    os.environ.setdefault("OLLAMA_API_BASE", ollama_host)
 
     model = LiteLlm(
         model=f"ollama/{model_name}",
-        temperature=0,  # Minimize variance for reproducible thesis results
-        api_base=api_base,
     )
 
     agent = Agent(
         name=f"risk_eval_l{autonomy_level}",
         model=model,
         instruction=instruction,
-        mode="chat",
+        generate_content_config=genai_types.GenerateContentConfig(
+            temperature=0,
+        ),
         disallow_transfer_to_parent=True,
         disallow_transfer_to_peers=True,
         before_tool_callback=before_tool_callback,

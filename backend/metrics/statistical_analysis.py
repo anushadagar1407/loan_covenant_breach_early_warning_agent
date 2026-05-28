@@ -4,16 +4,29 @@ metrics/statistical_analysis.py
 Statistical validation for thesis hypotheses.
 """
 
-import numpy as np
-from scipy import stats
 from typing import List, Dict, Tuple
 
-def bootstrap_confidence_interval(data: List[float], statistic_fn=np.mean, n_bootstrap: int = 10000, confidence_level: float = 0.95) -> Tuple[float, float, float]:
+import numpy as np
+from scipy import stats
+
+
+def _finite(value: float, default: float = 0.0) -> float:
+    return float(value) if np.isfinite(value) else default
+
+
+def bootstrap_confidence_interval(data: List[float], statistic_fn=np.mean, n_bootstrap: int = 2000, confidence_level: float = 0.95) -> Tuple[float, float, float]:
     """Compute bootstrap confidence interval."""
+    if len(data) == 0:
+        return 0.0, 0.0, 0.0
+    if len(data) == 1:
+        point = float(statistic_fn(data))
+        return point, point, point
+
+    rng = np.random.default_rng(1407)
     bootstrap_stats = []
     n = len(data)
     for _ in range(n_bootstrap):
-        sample = np.random.choice(data, size=n, replace=True)
+        sample = rng.choice(data, size=n, replace=True)
         bootstrap_stats.append(statistic_fn(sample))
     alpha = 1 - confidence_level
     lower = np.percentile(bootstrap_stats, 100 * alpha / 2)
@@ -24,34 +37,93 @@ def bootstrap_confidence_interval(data: List[float], statistic_fn=np.mean, n_boo
 
 def validate_h1_gap_score(runs: List) -> Dict:
     """H1: Outcome metrics mask process risk."""
+    if not runs:
+        return _empty_h1("H1 not evaluated - no completed runs are available.")
+
     process_errors = np.array([1 if r.process_error_detected else 0 for r in runs])
     outcome_errors = np.array([0 if r.outcome_correct else 1 for r in runs])
     gap_scores = process_errors - outcome_errors
 
-    t_stat, p_value = stats.ttest_1samp(gap_scores, 0, alternative='greater')
+    mean_gap = float(np.mean(gap_scores))
+    if len(gap_scores) < 2:
+        t_stat, p_value = 0.0, 1.0
+    elif np.std(gap_scores) == 0:
+        t_stat = 0.0
+        p_value = 0.0 if mean_gap > 0 else 1.0
+    else:
+        t_stat, p_value = stats.ttest_1samp(gap_scores, 0, alternative='greater')
+
     mean_gap, ci_low, ci_high = bootstrap_confidence_interval(gap_scores)
     cohens_d = np.mean(gap_scores) / np.std(gap_scores) if np.std(gap_scores) > 0 else 0
     positive_gap_count = np.sum(gap_scores > 0)
+    significant = p_value < 0.05 and mean_gap > 0
 
     return {
         "hypothesis": "H1: Outcome metrics mask process risk",
-        "gap_score_mean": float(mean_gap),
-        "gap_score_std": float(np.std(gap_scores)),
-        "confidence_interval_95": (float(ci_low), float(ci_high)),
-        "t_statistic": float(t_stat),
-        "p_value": float(p_value),
-        "significant_at_0_05": p_value < 0.05,
-        "significant_at_0_01": p_value < 0.01,
-        "cohens_d": float(cohens_d),
+        "gap_score_mean": _finite(mean_gap),
+        "gap_score_std": _finite(np.std(gap_scores)),
+        "confidence_interval_95": (_finite(ci_low), _finite(ci_high)),
+        "t_statistic": _finite(t_stat),
+        "p_value": _finite(p_value, 1.0),
+        "significant_at_0_05": significant,
+        "significant_at_0_01": p_value < 0.01 and mean_gap > 0,
+        "cohens_d": _finite(cohens_d),
         "effect_size_interpretation": interpret_effect_size(cohens_d),
         "runs_with_gap": int(positive_gap_count),
         "total_runs": len(runs),
         "percentage_with_gap": float(positive_gap_count / len(runs) * 100),
-        "conclusion": "H1 SUPPORTED" if p_value < 0.05 and mean_gap > 0 else "H1 NOT SUPPORTED"
+        "conclusion": (
+            "H1 supported in the current completed-run cohort"
+            if significant
+            else "H1 inconclusive in the current completed-run cohort"
+        ),
+    }
+
+
+def _empty_h1(conclusion: str) -> Dict:
+    return {
+        "hypothesis": "H1: Outcome metrics mask process risk",
+        "gap_score_mean": 0.0,
+        "gap_score_std": 0.0,
+        "confidence_interval_95": (0.0, 0.0),
+        "t_statistic": 0.0,
+        "p_value": 1.0,
+        "significant_at_0_05": False,
+        "significant_at_0_01": False,
+        "cohens_d": 0.0,
+        "effect_size_interpretation": "not_evaluated",
+        "runs_with_gap": 0,
+        "total_runs": 0,
+        "percentage_with_gap": 0.0,
+        "conclusion": conclusion,
+    }
+
+
+def _empty_h2(conclusion: str) -> Dict:
+    return {
+        "hypothesis": "H2: Autonomy increases process errors",
+        "level_1_error_rate": None,
+        "level_2_error_rate": None,
+        "level_3_error_rate": None,
+        "level_1_coverage": None,
+        "level_2_coverage": None,
+        "level_3_coverage": None,
+        "chi_square_statistic": 0.0,
+        "chi_square_p_value": 1.0,
+        "spearman_correlation": 0.0,
+        "correlation_p_value": 1.0,
+        "kruskal_wallis_h": 0.0,
+        "kruskal_wallis_p": 1.0,
+        "trend_direction": "not_evaluated",
+        "significant_at_0_05": False,
+        "conclusion": conclusion,
     }
 
 def validate_h2_autonomy_errors(runs: List) -> Dict:
     """H2: Higher autonomy increases process errors."""
+    if not runs:
+        return _empty_h2("H2 not evaluated - no completed runs are available.")
+
     levels = [1, 2, 3]
     error_rates = []
     coverage_scores = []
@@ -77,7 +149,7 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
         no_errors = len(level_runs) - errors
         contingency.append([errors, no_errors])
 
-    if len(contingency) >= 2:
+    if len(contingency) >= 2 and len({tuple(row) for row in contingency}) > 1:
         chi2, p_value, dof, expected = stats.chi2_contingency(contingency)
     else:
         chi2, p_value = 0, 1.0
@@ -85,7 +157,7 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
     autonomy_values = [r.autonomy_level for r in runs]
     error_values = [1 if r.process_error_detected else 0 for r in runs]
 
-    if len(set(autonomy_values)) > 1:
+    if len(set(autonomy_values)) > 1 and len(set(error_values)) > 1:
         correlation, corr_p_value = stats.spearmanr(autonomy_values, error_values)
     else:
         correlation, corr_p_value = 0, 1.0
@@ -93,10 +165,13 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
     groups = [[1 if r.process_error_detected else 0 for r in runs if r.autonomy_level == level] for level in levels]
     groups = [g for g in groups if len(g) > 0]
 
-    if len(groups) >= 2:
+    if len(groups) >= 2 and any(len(set(g)) > 1 for g in groups):
         h_stat, kruskal_p = stats.kruskal(*groups)
     else:
         h_stat, kruskal_p = 0, 1.0
+    correlation = _finite(correlation)
+    corr_p_value = _finite(corr_p_value, 1.0)
+    significant = p_value < 0.05 and correlation > 0
 
     return {
         "hypothesis": "H2: Autonomy increases process errors",
@@ -106,15 +181,19 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
         "level_1_coverage": float(coverage_scores[0]) if len(coverage_scores) > 0 else None,
         "level_2_coverage": float(coverage_scores[1]) if len(coverage_scores) > 1 else None,
         "level_3_coverage": float(coverage_scores[2]) if len(coverage_scores) > 2 else None,
-        "chi_square_statistic": float(chi2),
-        "chi_square_p_value": float(p_value),
-        "spearman_correlation": float(correlation),
-        "correlation_p_value": float(corr_p_value),
-        "kruskal_wallis_h": float(h_stat),
-        "kruskal_wallis_p": float(kruskal_p),
-        "trend_direction": "increasing" if correlation > 0 else "decreasing",
-        "significant_at_0_05": p_value < 0.05,
-        "conclusion": "H2 SUPPORTED" if p_value < 0.05 and correlation > 0 else "H2 WEAK/NOT SUPPORTED",
+        "chi_square_statistic": _finite(chi2),
+        "chi_square_p_value": _finite(p_value, 1.0),
+        "spearman_correlation": correlation,
+        "correlation_p_value": corr_p_value,
+        "kruskal_wallis_h": _finite(h_stat),
+        "kruskal_wallis_p": _finite(kruskal_p, 1.0),
+        "trend_direction": "increasing" if correlation > 0 else "flat_or_decreasing",
+        "significant_at_0_05": significant,
+        "conclusion": (
+            "H2 supported in the current completed-run cohort"
+            if significant
+            else "H2 inconclusive in the current completed-run cohort"
+        ),
     }
     
 def compute_classification_metrics(runs: List) -> Dict:
@@ -123,6 +202,8 @@ def compute_classification_metrics(runs: List) -> Dict:
     y_pred = []
 
     for r in runs:
+        if r.correct_verdict is None or r.final_verdict is None:
+            continue
         true_positive = r.correct_verdict in ['breach', 'breach_curable', 'imminent']
         y_true.append(1 if true_positive else 0)
         pred_positive = r.final_verdict in ['breach', 'breach_curable', 'imminent']

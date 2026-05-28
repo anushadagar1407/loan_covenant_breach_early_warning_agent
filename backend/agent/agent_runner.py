@@ -9,13 +9,15 @@ LLM reasoning + tool dispatch) and the metrics/registry system (which
 measures process quality).
 
 ADK Callback Pattern:
-  ADK 0.4.x+ supports before_tool_callback and after_tool_callback on the
+  ADK 1.x supports before_tool_callback and after_tool_callback on the
   Agent class. We use these to record tool events without modifying tools.
   If your ADK version doesn't support callbacks, we fall back to wrapping
   tools in timing decorators.
 """
 
+import asyncio
 import json
+import logging
 import os
 import time
 import uuid
@@ -23,28 +25,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from agent.covenant_agent import create_covenant_agent
-# DEBUG: instrument litellm to log token usage
-import litellm
-litellm.set_verbose = False  # set True only if you want full request/response dumps (very loud)
-# Hook to log token usage per call
-_orig_success_callback = getattr(litellm, "success_callback", [])
-def _token_logger(kwargs, completion_response, start_time, end_time):
-    try:
-        usage = getattr(completion_response, "usage", None) or completion_response.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", 0) if hasattr(usage, "get") else getattr(usage, "prompt_tokens", 0)
-        completion_tokens = usage.get("completion_tokens", 0) if hasattr(usage, "get") else getattr(usage, "completion_tokens", 0)
-        total = prompt_tokens + completion_tokens
-        model = kwargs.get("model", "?")
-        msgs = kwargs.get("messages", [])
-        last_user_msg = next((m.get("content", "")[:200] for m in reversed(msgs) if m.get("role") == "user"), "")
-        print(f"[LLM_CALL] model={model} prompt_tokens={prompt_tokens} completion_tokens={completion_tokens} total={total} | last_user_msg[0:200]={last_user_msg!r}", flush=True)
-    except Exception as e:
-        print(f"[LLM_CALL] logging error: {e}", flush=True)
-litellm.success_callback = list(_orig_success_callback) + [_token_logger]
-
 from metrics.trajectory_tracker import compute_trajectory_score
 from metrics.tool_accuracy_scorer import score_tool_call_accuracy
 from metrics.clause_coverage_scorer import compute_clause_coverage
+
+logger = logging.getLogger(__name__)
 
 VALID_TOOL_NAMES = {
     "extract_financial_metrics",
@@ -148,6 +133,43 @@ def _tool_error_guard(tool, args, tool_context, error):
     return None
 
 
+def _tool_name(tool: Any) -> str:
+    return getattr(tool, "name", None) or getattr(tool, "__name__", None) or str(tool)
+
+
+def _make_adk_callbacks(ctx: RunContext):
+    """
+    Build ADK callbacks that convert real ADK tool execution into thesis audit
+    events. Without these callbacks, L2/L3 would execute through ADK but the
+    registry would not have process evidence to score.
+    """
+
+    def before_tool_callback(tool, args, tool_context):
+        tool_name = _tool_name(tool)
+        ctx.record_tool_start(tool_name, args or {})
+        return None
+
+    def after_tool_callback(tool, args, tool_context, tool_response):
+        ctx.record_tool_end(_tool_name(tool), tool_response)
+        return None
+
+    def on_tool_error_callback(tool, args, tool_context, error):
+        tool_name = _tool_name(tool)
+        has_open_event = any(
+            event["tool_name"] == tool_name and event.get("completed_at") is None
+            for event in ctx.tool_events
+        )
+        if not has_open_event:
+            ctx.record_tool_start(tool_name, args or {})
+
+        guarded = _tool_error_guard(tool, args, tool_context, error)
+        response = guarded or {"error": str(error), "tool_name": tool_name}
+        ctx.record_tool_end(tool_name, response, str(error))
+        return response
+
+    return before_tool_callback, after_tool_callback, on_tool_error_callback
+
+
 async def run_agent_with_metrics(
     scenario_id: str,
     borrower_id: str,
@@ -162,7 +184,7 @@ async def run_agent_with_metrics(
 
     This is the main entry point called by the FastAPI routes. It:
     1. Creates an instrumented agent run context
-    2. Attempts to use ADK callbacks; falls back to wrapped tools
+    2. Uses ADK callbacks for L2/L3 tool traces; falls back to deterministic tools if the model runtime fails
     3. Runs the agent against the specified scenario
     4. Computes all 5 thesis metrics from the captured tool events
     5. Returns the complete run record for persistence
@@ -197,15 +219,19 @@ async def run_agent_with_metrics(
     skip_tools = _skip_tools_for_autonomy(autonomy_level, borrower_has_adjustments, borrower_has_grace)
     if simulate_skip_tool is not None:
         skip_tools = {simulate_skip_tool}
-    use_llm_agent = os.getenv("USE_LLM_AGENT", "0") == "1" and autonomy_level > 1
+    use_llm_agent = os.getenv("USE_LLM_AGENT", "1") != "0" and autonomy_level > 1
 
     final_output = None
     agent_error = None
+    adk_invocation_attempted = False
+    deterministic_fallback_used = False
+    execution_mode = "deterministic_control" if autonomy_level == 1 else "deterministic"
 
     # L1 is deterministic so the workflow always completes and remains auditable.
-    # L2/L3 also default to deterministic tool sequencing unless explicitly
-    # enabled via USE_LLM_AGENT=1.
+    # L2/L3 use ADK by default. USE_LLM_AGENT=0 forces deterministic execution
+    # for reproducibility tests or constrained local environments.
     if not use_llm_agent or simulate_skip_tool is not None or autonomy_level == 1:
+        execution_mode = "deterministic_control" if autonomy_level == 1 else "deterministic_forced"
         final_output = await _simulate_tool_run(
             ctx,
             pdf_path,
@@ -216,11 +242,16 @@ async def run_agent_with_metrics(
         completed_at = datetime.now(timezone.utc)
     else:
         # L2/L3 use the LLM agent path.
+        adk_invocation_attempted = True
+        execution_mode = "adk_ollama"
         ollama_model = None  # ignored; covenant_agent.py reads OLLAMA_MODEL directly
+        before_tool_callback, after_tool_callback, on_tool_error_callback = _make_adk_callbacks(ctx)
         agent = create_covenant_agent(
             autonomy_level,
             ollama_model,
-            on_tool_error_callback=_tool_error_guard,
+            before_tool_callback=before_tool_callback,
+            after_tool_callback=after_tool_callback,
+            on_tool_error_callback=on_tool_error_callback,
         )
 
         completed_at = None
@@ -246,14 +277,21 @@ async def run_agent_with_metrics(
 
             msg = genai_types.Content(role="user", parts=[genai_types.Part(text=prompt)])
 
-            async for event in runner.run_async(
-                user_id="thesis",
-                session_id=session.id,
-                new_message=msg,
-            ):
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_output = event.content.parts[0].text
-                    break
+            async def _collect_adk_response():
+                async for event in runner.run_async(
+                    user_id="thesis",
+                    session_id=session.id,
+                    new_message=msg,
+                ):
+                    if event.is_final_response() and event.content and event.content.parts:
+                        return event.content.parts[0].text
+                return None
+
+            adk_timeout_seconds = float(os.getenv("ADK_RUN_TIMEOUT_SECONDS", "45"))
+            final_output = await asyncio.wait_for(
+                _collect_adk_response(),
+                timeout=adk_timeout_seconds,
+            )
 
             if not final_output:
                 raise RuntimeError("No final response received from agent")
@@ -264,17 +302,23 @@ async def run_agent_with_metrics(
         except Exception as runner_err:
             import traceback
             tb_str = traceback.format_exc()
-            print("=" * 70, flush=True)
-            print("=== AGENT RUNNER CRASH — FULL TRACEBACK ===", flush=True)
-            print(tb_str, flush=True)
-            print("=" * 70, flush=True)
+            if isinstance(runner_err, asyncio.TimeoutError):
+                runner_message = (
+                    f"ADK/Ollama run exceeded ADK_RUN_TIMEOUT_SECONDS="
+                    f"{os.getenv('ADK_RUN_TIMEOUT_SECONDS', '45')}"
+                )
+            else:
+                runner_message = str(runner_err)
+            logger.warning("ADK runner failed for %s; falling back to deterministic workflow: %s", run_id, runner_message)
             ctx._add_audit("debug_traceback", "Full runner exception", {"traceback": tb_str[-2000:]})
             ctx._add_audit(
                 "llm_fallback",
-                "LLM agent path failed; falling back to deterministic tool simulation.",
-                {"error": str(runner_err)},
+                "ADK/Ollama path failed; falling back to deterministic covenant workflow.",
+                {"error": runner_message},
             )
             try:
+                deterministic_fallback_used = True
+                execution_mode = "adk_fallback"
                 final_output = await _simulate_tool_run(
                     ctx,
                     pdf_path,
@@ -381,6 +425,9 @@ async def run_agent_with_metrics(
         "borrower_id": borrower_id,
         "borrower_name": borrower_profile.get("name", borrower_id),
         "autonomy_level": autonomy_level,
+        "execution_mode": execution_mode,
+        "adk_invocation_attempted": adk_invocation_attempted,
+        "deterministic_fallback_used": deterministic_fallback_used,
         "pdf_path": pdf_path,
         "started_at": ctx.started_at.isoformat(),
         "completed_at": completed_at.isoformat() if completed_at else None,
@@ -417,6 +464,9 @@ async def run_agent_with_metrics(
             "control_baseline_expected": autonomy_level == 1,
             "transparency_artifacts_present": transparency_artifacts_present,
             "ground_truth_fallback_used": ground_truth_fallback_used,
+            "adk_invocation_attempted": adk_invocation_attempted,
+            "deterministic_fallback_used": deterministic_fallback_used,
+            "execution_mode": execution_mode,
         },
 
         # Status
@@ -436,8 +486,8 @@ async def _simulate_tool_run(
     skip_tools: set[str] | None = None,
 ) -> str:
     """
-    Runs all tools directly (no LLM) in the expected sequence,
-    skipping any tools named in skip_tools. Used for deterministic testing.
+    Runs tools directly in the expected sequence. This is the L1 control
+    workflow and the recovery path when the ADK/Ollama runtime is unavailable.
     """
     from agent.tools import (
         extract_financial_metrics,
@@ -449,7 +499,7 @@ async def _simulate_tool_run(
     )
 
     skip_tools = set(skip_tools or ())
-    ctx._add_audit("agent_thinking", f"[SIMULATION] Running tools directly (skip={sorted(skip_tools)})", {})
+    ctx._add_audit("agent_thinking", f"Running deterministic covenant workflow (skipped_steps={sorted(skip_tools)})", {})
 
     # Step 1
     metrics = {}
@@ -458,7 +508,7 @@ async def _simulate_tool_run(
         metrics = extract_financial_metrics(pdf_path, borrower_id)
         ctx.record_tool_end("extract_financial_metrics", metrics)
     else:
-        ctx._add_audit("agent_thinking", "[SIMULATION] Skipped extract_financial_metrics", {})
+        ctx._add_audit("agent_thinking", "Skipped extract_financial_metrics for controlled process-error scenario", {})
 
     # Step 2
     cov = {}
@@ -467,7 +517,7 @@ async def _simulate_tool_run(
         cov = identify_applicable_covenants(borrower_id)
         ctx.record_tool_end("identify_applicable_covenants", cov)
 
-    # Step 3 — THE CRITICAL H1 STEP
+    # Step 3 - the critical H1 step.
     adj = {"adjusted_ebitda": metrics.get("reported_ebitda", 0),
            "adjusted_debt": metrics.get("total_debt", 0),
            "adjustments_applicable": False, "adjustment_amount": 0, "adjustment_notes": "Skipped"}
@@ -477,8 +527,11 @@ async def _simulate_tool_run(
         adj = check_accounting_adjustments(borrower_id, metrics)
         ctx.record_tool_end("check_accounting_adjustments", adj)
     else:
-        ctx._add_audit("agent_thinking",
-                       "[SIMULATION] Skipped check_accounting_adjustments — PROCESS ERROR", {})
+        ctx._add_audit(
+            "agent_thinking",
+            "Skipped check_accounting_adjustments; this is a controlled process-error condition.",
+            {},
+        )
 
     # Step 4
     gp = {"has_grace_period": False, "cure_available": False}
@@ -519,8 +572,8 @@ async def _simulate_tool_run(
         report = generate_report(scenario_id, borrower_id, metrics, cov, adj, gp, breach)
         ctx.record_tool_end("generate_report", report)
 
-    ctx._add_audit("final_output", f"[SIMULATION] Complete. Verdict: {breach.get('verdict', 'unknown')}", {})
-    return f"Simulation complete. Verdict: {breach.get('verdict', 'unknown')}"
+    ctx._add_audit("final_output", f"Deterministic workflow complete. Verdict: {breach.get('verdict', 'unknown')}", {})
+    return f"Deterministic workflow complete. Verdict: {breach.get('verdict', 'unknown')}"
 
 
 async def run_multi_agent_pipeline(

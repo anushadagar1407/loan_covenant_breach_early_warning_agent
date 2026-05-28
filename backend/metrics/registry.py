@@ -1,8 +1,8 @@
-"""UPDATED registry with statistical validation"""
+"""Registry aggregation with statistical validation for thesis evidence."""
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.models import AgentRun
+from database.models import AgentRun, TrustResponse
 from metrics.statistical_analysis import (
     validate_h1_gap_score,
     validate_h2_autonomy_errors,
@@ -23,12 +23,17 @@ def _to_py(obj):
 async def get_registry_summary(session: AsyncSession) -> dict:
     """Get comprehensive registry summary with statistical validation."""
     result = await session.execute(select(AgentRun))
-    runs = result.scalars().all()
+    all_runs = result.scalars().all()
+    runs = [
+        r for r in all_runs
+        if r.status == "completed" and r.outcome_correct is not None
+    ]
 
     if len(runs) == 0:
-        return {"total_runs": 0, "message": "No runs found"}
+        return await _empty_registry_summary(session, len(all_runs))
 
-    total_runs = len(runs)
+    total_runs = len(all_runs)
+    evaluated_runs = len(runs)
 
     # Normalize coverage and trajectory to avoid None-type math
     coverages = [(r.clause_coverage_score or 0.0) for r in runs]
@@ -38,15 +43,17 @@ async def get_registry_summary(session: AsyncSession) -> dict:
     outcome_errors = sum(1 for r in runs if not r.outcome_correct)
     fully_compliant = sum(1 for c in coverages if c >= 1.0)
 
-    process_error_rate = process_errors / total_runs
-    outcome_error_rate = outcome_errors / total_runs
+    process_error_rate = process_errors / evaluated_runs
+    outcome_error_rate = outcome_errors / evaluated_runs
     gap_score = process_error_rate - outcome_error_rate
-    avg_coverage = sum(coverages) / total_runs
-    avg_trajectory = sum(trajectories) / total_runs
-    compliance_rate = fully_compliant / total_runs
+    avg_coverage = sum(coverages) / evaluated_runs
+    avg_trajectory = sum(trajectories) / evaluated_runs
+    compliance_rate = fully_compliant / evaluated_runs
     h1_evidence_count = sum(1 for r in runs if r.outcome_correct and r.process_error_detected)
     fallback_count = sum(1 for r in runs if getattr(r, "ground_truth_fallback_used", False))
     transparent_count = sum(1 for r in runs if getattr(r, "transparency_artifacts_present", False))
+    adk_attempts = sum(1 for r in runs if getattr(r, "adk_invocation_attempted", False))
+    fallback_runs = sum(1 for r in runs if getattr(r, "deterministic_fallback_used", False))
 
     h1_validation = _to_py(validate_h1_gap_score(runs))
     h2_validation = _to_py(validate_h2_autonomy_errors(runs))
@@ -62,14 +69,23 @@ async def get_registry_summary(session: AsyncSession) -> dict:
                 "process_error_rate": (
                     sum(1 for r in level_runs if r.process_error_detected) / len(level_runs)
                 ),
+                "avg_clause_coverage": sum(lvl_coverages) / len(level_runs),
                 "avg_coverage": sum(lvl_coverages) / len(level_runs),
                 "outcome_accuracy": (
                     sum(1 for r in level_runs if r.outcome_correct) / len(level_runs)
                 ),
+                "outcome_error_rate": (
+                    sum(1 for r in level_runs if r.outcome_correct is False) / len(level_runs)
+                ),
             }
+            level_stats[str(level)] = level_stats[f"level_{level}"]
+
+    trust_status = await _trust_status(session)
 
     return {
         "total_runs": total_runs,
+        "evaluated_runs": evaluated_runs,
+        "running_or_incomplete_runs": total_runs - evaluated_runs,
         "gap_score": gap_score,
         "process_error_rate": process_error_rate,
         "outcome_error_rate": outcome_error_rate,
@@ -86,22 +102,87 @@ async def get_registry_summary(session: AsyncSession) -> dict:
         "runs_by_autonomy_level": level_stats,
         "h1_evidence": {"count": h1_evidence_count},
         "evidence_quality": {
-            "minimum_runs_met": total_runs >= 30,
+            "minimum_runs_met": evaluated_runs >= 30,
             "ground_truth_fallback_runs": fallback_count,
-            "ground_truth_fallback_rate": fallback_count / total_runs,
-            "transparency_artifact_rate": transparent_count / total_runs,
+            "ground_truth_fallback_rate": fallback_count / evaluated_runs,
+            "transparency_artifact_rate": transparent_count / evaluated_runs,
+            "adk_invocation_attempted_runs": adk_attempts,
+            "adk_invocation_rate": adk_attempts / evaluated_runs,
+            "deterministic_fallback_runs": fallback_runs,
             "note": (
                 "Treat hypothesis labels as exploratory until evaluation cohorts "
-                "exclude demo fallback runs and meet the planned sample size."
+                "exclude synthetic fallback rows and meet the planned sample size."
             ),
         },
+        "h3_validation": trust_status["h3_validation"],
+        "h4_validation": trust_status["h4_validation"],
+    }
+
+
+async def _empty_registry_summary(session: AsyncSession, total_runs: int) -> dict:
+    trust_status = await _trust_status(session)
+    h1_validation = _to_py(validate_h1_gap_score([]))
+    h2_validation = _to_py(validate_h2_autonomy_errors([]))
+    classification_metrics = _to_py(compute_classification_metrics([]))
+    return {
+        "total_runs": total_runs,
+        "evaluated_runs": 0,
+        "running_or_incomplete_runs": total_runs,
+        "gap_score": 0.0,
+        "process_error_rate": 0.0,
+        "outcome_error_rate": 0.0,
+        "process_errors": 0,
+        "outcome_errors": 0,
+        "fully_compliant_runs": 0,
+        "compliance_rate": 0.0,
+        "avg_clause_coverage_score": 0.0,
+        "avg_trajectory_score": 0.0,
+        "h1_validation": h1_validation,
+        "h2_validation": h2_validation,
+        "classification_metrics": classification_metrics,
+        "level_stats": {},
+        "runs_by_autonomy_level": {},
+        "h1_evidence": {"count": 0},
+        "evidence_quality": {
+            "minimum_runs_met": False,
+            "ground_truth_fallback_runs": 0,
+            "ground_truth_fallback_rate": 0.0,
+            "transparency_artifact_rate": 0.0,
+            "adk_invocation_attempted_runs": 0,
+            "adk_invocation_rate": 0.0,
+            "deterministic_fallback_runs": 0,
+            "note": "No completed evaluation runs are available yet.",
+        },
+        "h3_validation": trust_status["h3_validation"],
+        "h4_validation": trust_status["h4_validation"],
+        "message": "No completed evaluation runs found.",
+    }
+
+
+async def _trust_status(session: AsyncSession) -> dict:
+    result = await session.execute(select(TrustResponse))
+    responses = result.scalars().all()
+    by_run = {}
+    for response in responses:
+        by_run.setdefault(response.run_id, set()).add(response.transparency_condition)
+    paired_runs = sum(1 for conditions in by_run.values() if {"outcome_only", "transparent"}.issubset(conditions))
+    groups = {response.stakeholder_group for response in responses}
+    return {
         "h3_validation": {
-            "status": "not_implemented",
-            "message": "No stakeholder trust responses are stored yet.",
+            "status": "instrumented" if not responses else "data_collection_started",
+            "message": (
+                "Stakeholder trust instrument is implemented; collect responses across stakeholder groups for H3."
+                if not responses
+                else f"{len(responses)} trust responses across {len(groups)} stakeholder groups are available."
+            ),
         },
         "h4_validation": {
-            "status": "not_implemented",
-            "message": "No outcome-only versus transparent-view trust experiment is stored yet.",
+            "status": "instrumented" if paired_runs == 0 else "comparison_ready",
+            "message": (
+                "Outcome-only and transparent conditions are implemented; collect paired run responses for H4."
+                if paired_runs == 0
+                else f"{paired_runs} runs have both outcome-only and transparent trust responses."
+            ),
         },
     }
 
@@ -112,6 +193,8 @@ async def get_h1_evidence(session: AsyncSession) -> dict:
     """
     result = await session.execute(
         select(AgentRun).where(
+            AgentRun.status == "completed",
+            AgentRun.outcome_correct.is_not(None),
             AgentRun.outcome_correct == True,          # noqa: E712
             AgentRun.process_error_detected == True,   # noqa: E712
         )
@@ -145,7 +228,11 @@ async def get_h2_evidence(session: AsyncSession) -> dict:
 
     for level in [1, 2, 3]:
         result = await session.execute(
-            select(AgentRun).where(AgentRun.autonomy_level == level)
+            select(AgentRun).where(
+                AgentRun.status == "completed",
+                AgentRun.outcome_correct.is_not(None),
+                AgentRun.autonomy_level == level,
+            )
         )
         level_runs = result.scalars().all()
         if not level_runs:
@@ -172,7 +259,7 @@ async def get_h2_evidence(session: AsyncSession) -> dict:
 
 async def get_baseline_comparison(session: AsyncSession, baseline_type: str) -> dict:
     """
-    Baseline comparison placeholder.
+    Baseline comparison endpoint.
 
     Looks for baseline runs stored with special autonomy levels:
     - 0  => rule-based baseline

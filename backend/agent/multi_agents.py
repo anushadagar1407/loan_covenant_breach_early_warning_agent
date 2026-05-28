@@ -6,8 +6,12 @@ Uses Google ADK with Ollama.
 """
 
 import os
+
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
+from google.genai import types as genai_types
 
 from agent.tools.document_intelligence import scan_pdf_pages, identify_relevant_pages, create_reduced_pdf
 from agent.tools.data_extraction import parse_reduced_pdf, extract_table_data, compute_financial_ratios, extract_company_name
@@ -33,23 +37,19 @@ def create_document_intelligence_agent() -> Agent:
     """
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
-    # Strip scheme from OLLAMA_HOST for LiteLLM (avoid SSL context issues)
-    api_base = ollama_host.replace("https://", "").replace("http://", "")
-    if not api_base.startswith("http"):
-        api_base = f"http://{api_base}"
+    os.environ.setdefault("OLLAMA_API_BASE", ollama_host)
 
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
-        temperature=0.1,  # Low for precision
-        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     return Agent(
         name="document_intelligence_agent",
         model=model,
         instruction=instruction,
+        generate_content_config=genai_types.GenerateContentConfig(temperature=0.1),
         tools=[scan_pdf_pages, identify_relevant_pages, create_reduced_pdf],
     )
 
@@ -73,23 +73,19 @@ def create_data_extraction_agent() -> Agent:
     """
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
-    # Strip scheme from OLLAMA_HOST for LiteLLM (avoid SSL context issues)
-    api_base = ollama_host.replace("https://", "").replace("http://", "")
-    if not api_base.startswith("http"):
-        api_base = f"http://{api_base}"
+    os.environ.setdefault("OLLAMA_API_BASE", ollama_host)
 
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
-        temperature=0.1,  # Low for precision
-        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     return Agent(
         name="data_extraction_agent",
         model=model,
         instruction=instruction,
+        generate_content_config=genai_types.GenerateContentConfig(temperature=0.1),
         tools=[parse_reduced_pdf, extract_table_data, compute_financial_ratios, extract_company_name],
     )
 
@@ -112,22 +108,18 @@ def create_analysis_agent() -> Agent:
     """
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
-    # Strip scheme from OLLAMA_HOST for LiteLLM (avoid SSL context issues)
-    api_base = ollama_host.replace("https://", "").replace("http://", "")
-    if not api_base.startswith("http"):
-        api_base = f"http://{api_base}"
+    os.environ.setdefault("OLLAMA_API_BASE", ollama_host)
 
     model = LiteLlm(
         model=f"ollama/{ollama_model}",
-        temperature=0.1,  # Low for precision
-        api_base=api_base if os.getenv("LITELLM_MODEL", "groq/llama-3.1-8b-instant").startswith("ollama/") else None,
     )
 
     return Agent(
         name="analysis_agent",
         model=model,
         instruction=instruction,
+        generate_content_config=genai_types.GenerateContentConfig(temperature=0.1),
         tools=[analyze_trends, generate_insights, generate_recommendations],
     )
