@@ -119,10 +119,11 @@ ollama pull llama3.1:8b
 cd backend
 pip install -r requirements.txt
 python scripts/generate_pdfs.py
-uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8010
 ```
 
 The backend initializes SQLite automatically on startup.
+The local backend uses port `8010` to avoid Windows socket conflicts that can occur when port `8000` is already held by another process.
 
 ### 3. Frontend setup
 
@@ -138,23 +139,47 @@ Open:
 http://localhost:3000
 ```
 
+### VS Code task
+
+The workspace includes VS Code tasks for local development. From VS Code, run:
+
+```text
+Terminal -> Run Task -> Dev: backend + frontend
+```
+
+This starts the backend on `http://localhost:8010` and the frontend on `http://localhost:3000`.
+
 ## Running the system
 
 ### UI path
 
-1. Open the dashboard.
-2. Click `Run Agent`.
-3. Select a scenario generated from the PDF catalog.
-4. Select `L1`, `L2`, or `L3`.
-5. Wait for completion.
-6. Open the run detail page for trace, inputs, and metric breakdown.
+1. Open the Overview page.
+2. Read the Registry sections in order:
+   `Registry & Concepts` -> `Metrics` -> `Evidence`.
+3. Click `Run Agent` from Overview when you want to add a controlled run.
+4. Select a scenario generated from the PDF catalog.
+5. Select `L1`, `L2`, or `L3`.
+6. Open `Agent Runs` for run output, post-run evaluation, trace, inputs, and metric breakdown.
+
+### Trust study UI path
+
+Trust collection and trust analysis are deliberately separated:
+
+- `/trust` is the neutral collection screen. It shows the selected agent output and the reviewer questionnaire, while hiding the gold standard, verdict correctness, clause coverage, and aggregate trust results.
+- `/trust/results` is the post-collection analysis screen. It separates the three evidence inputs: agent output, gold-standard comparison, and user trust response.
+
+Registry reading is also separated:
+
+- `/registry` defines key concepts.
+- `/registry/metrics` explains the process-level evaluation metrics.
+- `/registry/evidence` shows H1/H2 evidence tables and autonomy-level process risk.
 
 ### API path
 
 Start a run:
 
 ```bash
-curl -X POST http://localhost:8000/api/runs \
+curl -X POST http://localhost:8010/api/runs \
   -H "Content-Type: application/json" \
   -d '{"scenario_id":"CORP-001_Q3_2024","autonomy_level":1}'
 ```
@@ -162,19 +187,19 @@ curl -X POST http://localhost:8000/api/runs \
 Fetch the run:
 
 ```bash
-curl http://localhost:8000/api/runs/<run_id>
+curl http://localhost:8010/api/runs/<run_id>
 ```
 
 List scenarios:
 
 ```bash
-curl http://localhost:8000/api/scenarios
+curl http://localhost:8010/api/scenarios
 ```
 
 Submit a pilot trust-study response for H3/H4:
 
 ```bash
-curl -X POST http://localhost:8000/api/trust/responses \
+curl -X POST http://localhost:8010/api/trust/responses \
   -H "Content-Type: application/json" \
   -d '{
     "run_id":"<run_id>",
@@ -190,7 +215,13 @@ curl -X POST http://localhost:8000/api/trust/responses \
 Fetch trust-study analysis:
 
 ```bash
-curl http://localhost:8000/api/trust/analysis
+curl http://localhost:8010/api/trust/analysis
+```
+
+Fetch recorded trust responses with attached run snapshots:
+
+```bash
+curl http://localhost:8010/api/trust/responses
 ```
 
 For a presentation-only H3/H4 pilot, seed clearly labeled synthetic responses:
@@ -329,7 +360,7 @@ evaluated.
 Check:
 
 ```bash
-curl http://localhost:8000/api/runs/<run_id>
+curl http://localhost:8010/api/runs/<run_id>
 ```
 
 If the backend returns `500`, inspect the backend terminal log. The frontend now stops polling on server errors and surfaces the message.
@@ -369,7 +400,7 @@ Restart the backend after structural changes:
 
 ```bash
 cd backend
-uvicorn api.main:app --reload --port 8000
+python -m uvicorn api.main:app --reload --port 8010
 ```
 
 ### Problem: frontend stale state

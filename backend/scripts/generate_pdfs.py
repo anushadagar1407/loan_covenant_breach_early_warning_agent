@@ -14,6 +14,7 @@ Run: python scripts/generate_pdfs.py
 """
 
 import json
+import sys
 from pathlib import Path
 from datetime import date
 
@@ -30,8 +31,8 @@ try:
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     REPORTLAB_OK = True
 except ImportError:
-    REPORTLAB_OK = False
     print("reportlab not installed. Run: pip install reportlab")
+    sys.exit(1)
 
 DB_BLUE = colors.HexColor("#003882")
 DB_LIGHT = colors.HexColor("#E8EFF8")

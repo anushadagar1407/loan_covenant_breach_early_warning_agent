@@ -201,13 +201,12 @@ export default function DefensePage() {
       <div className="page-header">
         <div className="page-header-inner">
           <div className="pill-row" style={{ alignItems: 'center', marginBottom: 10 }}>
-            <span className="badge badge-blue">Thesis Dashboard</span>
-            <span className="eyebrow">Autonomy, process reliability, transparency, trust</span>
+            <span className="badge badge-blue">Thesis evidence</span>
+            <span className="eyebrow">Current support for H1-H4</span>
           </div>
-          <h1 className="page-title">Evaluating agentic AI beyond outcome accuracy.</h1>
+          <h1 className="page-title">Thesis evidence: what the current runs can and cannot support.</h1>
           <div className="page-subtitle">
-            The proposal is operationalized as four evidence streams: hidden process risk, autonomy-driven process errors,
-            stakeholder trust prediction, and transparency-driven trust improvement.
+            This final page summarizes the four claims after the reader has seen the registry, run evidence, and trust-study data.
           </div>
         </div>
       </div>
@@ -263,9 +262,9 @@ export default function DefensePage() {
           <ThesisClaimCard
             id="H2"
             title="Autonomy increases hidden errors"
-            claim="Higher autonomy is evaluated through L1, L2, and L3 process-error rates while final outcome quality remains visible."
+            claim="Higher autonomy is evaluated through constrained (L1), guided (L2), and autonomous (L3) process-error rates while final outcome quality remains visible."
             measure="Process-error incidence by autonomy level and clause-coverage degradation."
-            evidence={h2 ? `L1 ${pct(h2.level_1_error_rate)}, L2 ${pct(h2.level_2_error_rate)}, L3 ${pct(h2.level_3_error_rate)}; Spearman ${h2.spearman_correlation.toFixed(3)}.` : 'No H2 evidence loaded.'}
+            evidence={h2 ? `Constrained (L1) ${pct(h2.level_1_error_rate)}, guided (L2) ${pct(h2.level_2_error_rate)}, autonomous (L3) ${pct(h2.level_3_error_rate)}; Spearman ${h2.spearman_correlation.toFixed(3)}.` : 'No H2 evidence loaded.'}
             status={h2?.significant_at_0_05 ? 'supported' : summary ? 'partial' : 'missing'}
           />
           <ThesisClaimCard
@@ -297,7 +296,7 @@ export default function DefensePage() {
             <div className="timeline-list" style={{ marginTop: 16 }}>
               <div className="timeline-step"><div><strong>Outcome layer</strong><span>Accuracy, precision, recall, F1, and final covenant verdict.</span></div></div>
               <div className="timeline-step"><div><strong>Process layer</strong><span>Clause coverage, trajectory score, skipped checks, and tool-call accuracy.</span></div></div>
-              <div className="timeline-step"><div><strong>Autonomy layer</strong><span>L1 constrained, L2 guided, and L3 autonomous execution conditions.</span></div></div>
+              <div className="timeline-step"><div><strong>Autonomy layer</strong><span>Constrained (L1), guided (L2), and autonomous (L3) execution conditions.</span></div></div>
               <div className="timeline-step"><div><strong>Trust layer</strong><span>Stakeholder trust, auditability, reliability, and explanation sufficiency scores.</span></div></div>
             </div>
           </div>
@@ -347,9 +346,9 @@ export default function DefensePage() {
           <div className="card card-pad">
             <div className="section-label">Autonomy evidence</div>
             <div className="bar-list">
-              <LevelMiniBar label="L1 constrained process errors" value={h2?.level_1_error_rate} />
-              <LevelMiniBar label="L2 guided process errors" value={h2?.level_2_error_rate} />
-              <LevelMiniBar label="L3 autonomous process errors" value={h2?.level_3_error_rate} />
+              <LevelMiniBar label="Constrained (L1) process errors" value={h2?.level_1_error_rate} />
+              <LevelMiniBar label="Guided (L2) process errors" value={h2?.level_2_error_rate} />
+              <LevelMiniBar label="Autonomous (L3) process errors" value={h2?.level_3_error_rate} />
             </div>
             <div className="status-callout" style={{ marginTop: 16, borderLeftColor: h2?.significant_at_0_05 ? 'var(--pass)' : 'var(--warn)' }}>
               <strong>{h2?.conclusion ?? 'Autonomy evidence is not loaded.'}</strong>

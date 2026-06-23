@@ -33,9 +33,9 @@ Open `http://localhost:3000`.
 
 ```bash
 cd backend
-uvicorn api.main:app --reload --port 8000
-curl http://localhost:8000/health
-curl http://localhost:8000/api/scenarios
+python -m uvicorn api.main:app --reload --port 8010
+curl http://localhost:8010/health
+curl http://localhost:8010/api/scenarios
 ```
 
 Expected: the API starts, SQLite initializes, and scenarios are derived from PDFs in `backend/data/synthetic_pdfs/`.
@@ -45,7 +45,7 @@ Expected: the API starts, SQLite initializes, and scenarios are derived from PDF
 Run one scenario at each autonomy level from the Dashboard, or use the API:
 
 ```bash
-curl -X POST http://localhost:8000/api/runs \
+curl -X POST http://localhost:8010/api/runs \
   -H "Content-Type: application/json" \
   -d '{"scenario_id":"CORP-001_Q3_2024","autonomy_level":1}'
 ```

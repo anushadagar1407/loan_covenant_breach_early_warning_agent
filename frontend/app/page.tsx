@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
 import type { RegistrySummary, RunDetail, Scenario } from "@/lib/types";
 
 type RunPhase = "form" | "running" | "done" | "error";
@@ -8,9 +9,9 @@ type RunPhase = "form" | "running" | "done" | "error";
 const BASE: string = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 const autonomyOptions = [
-  { v: 1, label: "L1 - Constrained", desc: "Fixed six-tool workflow with explicit compliance order." },
-  { v: 2, label: "L2 - Moderate", desc: "Guided workflow with limited judgment over optional steps." },
-  { v: 3, label: "L3 - Autonomous", desc: "Agent chooses its own sequence under the same audit guardrails." },
+  { v: 1, label: "Constrained workflow (L1)", desc: "Fixed six-tool workflow with explicit compliance order." },
+  { v: 2, label: "Guided workflow (L2)", desc: "Limited judgment over optional steps within guardrails." },
+  { v: 3, label: "Autonomous workflow (L3)", desc: "Agent chooses its own sequence under the same audit guardrails." },
 ];
 
 export default function Dashboard() {
@@ -67,15 +68,14 @@ export default function Dashboard() {
       <div className="page-content">
         <section className="dashboard-hero" aria-labelledby="dashboard-title">
           <div>
-            <div className="eyebrow">Covenant Intelligence Platform</div>
-            <h1 id="dashboard-title">Process-aware breach detection for defensible agent evaluation.</h1>
+            <div className="eyebrow">Story overview</div>
+            <h1 id="dashboard-title">Evaluation overview: outcomes, process evidence, and trust.</h1>
             <p>
-              A thesis evaluation dashboard for comparing outcome accuracy against process reliability,
-              clause coverage, and autonomy-driven risk.
+              Follow the experiment from controlled covenant runs to registry evidence, trust responses, and final thesis claims.
             </p>
           </div>
           <div className="dashboard-hero-actions">
-            <a href="/runs" className="button button-secondary">View runs</a>
+            <a href="/registry" className="button button-secondary">Start with registry</a>
             <button
               type="button"
               onClick={() => setRunModalOpen(true)}
@@ -88,7 +88,7 @@ export default function Dashboard() {
 
         {!hasSummary && (
           <div className="status-callout" style={{ marginTop: 18, borderLeftColor: "var(--danger)" }}>
-            <strong style={{ color: "var(--danger)" }}>Dashboard metrics unavailable</strong>
+            <strong style={{ color: "var(--danger)" }}>Overview metrics unavailable</strong>
             <span>{error || "The backend registry summary did not return data. The launcher remains available for troubleshooting runs."}</span>
           </div>
         )}
@@ -96,28 +96,32 @@ export default function Dashboard() {
         {summary && h1 && (
           <section className="metric-grid" style={{ marginTop: 18 }} aria-label="Top dashboard metrics">
             <MetricCard
-              title="Evaluated Runs"
+              title="Evaluated runs"
               value={summary.evaluated_runs ?? summary.total_runs}
               subtitle={`${summary.running_or_incomplete_runs ?? 0} running or incomplete`}
               tone="neutral"
+              info="Completed runs included in the dashboard evidence set. Running or incomplete runs are shown separately because they should not be used as thesis evidence yet."
             />
             <MetricCard
-              title="Process Error Rate"
+              title="Process error rate"
               value={`${(summary.process_error_rate * 100).toFixed(0)}%`}
               subtitle={`${summary.process_errors} process failures`}
               tone="danger"
+              info="Share of evaluated runs where the workflow missed a required process step, such as a covenant clause check, accounting adjustment, or grace-period review."
             />
             <MetricCard
-              title="Gap Score"
+              title="Process-outcome gap"
               value={h1.significant_at_0_05 ? `+${(h1.gap_score_mean * 100).toFixed(1)}%` : "N/S"}
               subtitle={`p=${h1.p_value.toFixed(4)}`}
               tone={h1.significant_at_0_05 ? "warn" : "neutral"}
+              info="Difference between process error rate and final-verdict error rate. N/S means the current completed-run cohort is not statistically significant yet."
             />
             <MetricCard
-              title="Clause Coverage"
+              title="Clause coverage"
               value={`${(summary.avg_clause_coverage_score * 100).toFixed(0)}%`}
               subtitle={`${summary.fully_compliant_runs} fully compliant`}
               tone="pass"
+              info="Average share of required covenant clauses checked by the run. Full coverage means every required clause was reviewed before evaluation."
             />
           </section>
         )}
@@ -167,7 +171,7 @@ export default function Dashboard() {
                     {summary.evidence_quality?.minimum_runs_met
                       ? h1.significant_at_0_05
                         ? " The current completed-run cohort contains a statistically significant hidden-risk signal."
-                        : " The current completed-run cohort is not yet statistically conclusive; inspect clause coverage and add balanced L1-L3 runs before making a final thesis claim."
+                        : " The current completed-run cohort is not yet statistically conclusive; inspect clause coverage and add balanced constrained (L1), guided (L2), and autonomous (L3) runs before making a final thesis claim."
                       : " Treat this panel as exploratory until the completed-run threshold is met."}
                   </span>
                 </div>
@@ -218,9 +222,9 @@ export default function Dashboard() {
                 The dashboard makes the autonomy tradeoff visible without overloading the screen.
               </p>
               <div className="level-bars" style={{ marginTop: 18 }}>
-                {h2.level_1_error_rate !== undefined && <LevelBar level="L1" errorRate={h2.level_1_error_rate} />}
-                {h2.level_2_error_rate !== undefined && <LevelBar level="L2" errorRate={h2.level_2_error_rate} />}
-                {h2.level_3_error_rate !== undefined && <LevelBar level="L3" errorRate={h2.level_3_error_rate} />}
+                {h2.level_1_error_rate !== undefined && <LevelBar level="Constrained workflow (L1)" errorRate={h2.level_1_error_rate} />}
+                {h2.level_2_error_rate !== undefined && <LevelBar level="Guided workflow (L2)" errorRate={h2.level_2_error_rate} />}
+                {h2.level_3_error_rate !== undefined && <LevelBar level="Autonomous workflow (L3)" errorRate={h2.level_3_error_rate} />}
               </div>
               <div className="stat-list" style={{ marginTop: 18 }}>
                 <StatRow label="Chi-square p" value={h2.chi_square_p_value.toFixed(6)} highlight={h2.chi_square_p_value < 0.05} />
@@ -228,16 +232,16 @@ export default function Dashboard() {
               </div>
               <div className="status-callout" style={{ marginTop: 16, borderLeftColor: "var(--accent)" }}>
                 <strong>{h2.conclusion}</strong>
-                <span>Use L1/L2/L3 runs in sequence to show the process-risk gradient.</span>
+                <span>Use constrained (L1), guided (L2), and autonomous (L3) runs in sequence to show the process-risk gradient.</span>
               </div>
               </section>
             )}
 
             <section className="card card-pad" aria-labelledby="workflow-title">
-              <div className="section-label">Live workflow</div>
-              <h2 id="workflow-title" className="page-title">Run a controlled scenario</h2>
+              <div className="section-label">Next experiment step</div>
+              <h2 id="workflow-title" className="page-title">Run a controlled covenant scenario</h2>
               <p className="page-subtitle">
-                The launcher now keeps setup, progress, and results inside a viewport-safe modal with fixed actions.
+                Start an agent run from a PDF-derived scenario, then review its output and post-run evaluation in the run history.
               </p>
               <button
                 type="button"
@@ -262,11 +266,13 @@ function MetricCard({
   value,
   subtitle,
   tone,
+  info,
 }: {
   title: string;
   value: string | number;
   subtitle: string;
   tone: "neutral" | "pass" | "warn" | "danger";
+  info?: string;
 }) {
   const color = {
     neutral: "var(--text-primary)",
@@ -277,7 +283,17 @@ function MetricCard({
 
   return (
     <div className="metric-card">
-      <div className="section-label">{title}</div>
+      <div className="metric-card-topline">
+        <div className="section-label">{title}</div>
+        {info && (
+          <span className="metric-info">
+            <button type="button" className="info-button" aria-label={`${title} explanation`}>
+              <Info size={13} strokeWidth={2} />
+            </button>
+            <span className="info-tooltip" role="tooltip">{info}</span>
+          </span>
+        )}
+      </div>
       <div className="metric-card-value" style={{ color }}>{value}</div>
       <div className="metric-card-subtitle">{subtitle}</div>
     </div>
@@ -522,8 +538,8 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
       >
         <header className="modal-header">
           <div>
-            <h2 id="run-agent-title" className="modal-title">Run live agent</h2>
-            <p className="modal-description">Select a PDF-derived scenario and autonomy level.</p>
+            <h2 id="run-agent-title" className="modal-title">Start a covenant agent run</h2>
+            <p className="modal-description">Choose the borrower scenario and autonomy condition for the next experiment.</p>
           </div>
           <button
             type="button"
@@ -595,7 +611,7 @@ function RunAgentModal({ onClose }: { onClose: () => void }) {
                   height: 44,
                   margin: "0 auto 16px",
                   borderRadius: "50%",
-                  border: "3px solid rgba(94,160,255,0.22)",
+                  border: "3px solid var(--primary-soft)",
                   borderTopColor: "var(--accent-strong)",
                   animation: "spin 1s linear infinite",
                 }}
@@ -633,16 +649,34 @@ function RunResult({ runDetail }: { runDetail: RunDetail }) {
       <div className="status-callout" style={{ borderLeftColor: runDetail.process_error_detected ? "var(--danger)" : "var(--pass)" }}>
         <strong>Run complete</strong>
         <span>
-          Final verdict: {runDetail.final_verdict ?? "unknown"}. Process status: {runDetail.process_error_detected ? "review required" : "clean"}.
+          The agent returned {runDetail.final_verdict ?? "unknown"}. The evaluation below compares that result to scenario ground truth and checks the trace.
         </span>
       </div>
 
-      <div className="result-grid">
-        <ResultTile label="Final verdict" value={runDetail.final_verdict ?? "-"} />
-        <ResultTile label="Expected" value={runDetail.correct_verdict ?? "-"} />
-        <ResultTile label="Outcome correct" value={runDetail.outcome_correct === null ? "-" : runDetail.outcome_correct ? "Yes" : "No"} />
-        <ResultTile label="Clause coverage" value={`${((runDetail.clause_coverage_score ?? 0) * 100).toFixed(0)}%`} />
-        <ResultTile label="Duration" value={runDetail.duration_seconds ? `${runDetail.duration_seconds.toFixed(1)}s` : "-"} />
+      <div className="run-result-split">
+        <section className="soft-panel card-pad">
+          <div className="section-label">Agent run output</div>
+          <p className="page-subtitle" style={{ marginTop: 0 }}>
+            These fields come from the run itself.
+          </p>
+          <div className="result-grid" style={{ marginTop: 14 }}>
+            <ResultTile label="Agent verdict" value={runDetail.final_verdict ?? "-"} />
+            <ResultTile label="Duration" value={runDetail.duration_seconds ? `${runDetail.duration_seconds.toFixed(1)}s` : "-"} />
+          </div>
+        </section>
+
+        <section className="soft-panel card-pad evaluation-panel">
+          <div className="section-label">Post-run evaluation</div>
+          <p className="page-subtitle" style={{ marginTop: 0 }}>
+            Computed after the run by comparing the result to scenario ground truth.
+          </p>
+          <div className="result-grid" style={{ marginTop: 14 }}>
+            <ResultTile label="Ground truth" value={runDetail.correct_verdict ?? "-"} />
+            <ResultTile label="Verdict match" value={runDetail.outcome_correct === null ? "-" : runDetail.outcome_correct ? "Yes" : "No"} />
+            <ResultTile label="Clause coverage" value={`${((runDetail.clause_coverage_score ?? 0) * 100).toFixed(0)}%`} />
+            <ResultTile label="Process review" value={runDetail.process_error_detected ? "Needed" : "Clean"} />
+          </div>
+        </section>
       </div>
 
       {runDetail.pdfScenario?.input_summary && (

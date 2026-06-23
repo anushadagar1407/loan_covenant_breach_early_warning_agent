@@ -37,7 +37,7 @@ function ToolNode({ toolDef, event }: {
         display: 'grid',
         placeItems: 'center',
         border: `2px solid ${color}`,
-        background: called ? 'rgba(33,185,129,0.1)' : 'rgba(101,113,135,0.1)',
+        background: called ? 'var(--pass-wash)' : 'var(--neutral-wash)',
         color,
         fontFamily: 'var(--mono)',
         fontWeight: 600,
@@ -75,11 +75,22 @@ function ToolNode({ toolDef, event }: {
 
 function MetricTile({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="card" style={{ textAlign: 'center', padding: '14px 12px' }}>
+    <div className="result-tile metric-tile">
       <div className="section-label" style={{ fontSize: 9 }}>{label}</div>
       <div className="metric-number" style={{ fontSize: 20, color, overflowWrap: 'anywhere' }}>{value}</div>
     </div>
   )
+}
+
+function formatVerdict(value?: string | null) {
+  return (value ?? 'unknown').toUpperCase().replace(/_/g, ' ')
+}
+
+function autonomyLabel(level?: number | null) {
+  if (level === 1) return 'Constrained workflow (L1)'
+  if (level === 2) return 'Guided workflow (L2)'
+  if (level === 3) return 'Autonomous workflow (L3)'
+  return 'Unknown autonomy level'
 }
 
 export default function RunDetailPage({ params }: { params: { id: string } }) {
@@ -135,9 +146,9 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
           </div>
           <div className="detail-header-row">
             <div style={{ minWidth: 0 }}>
-              <h1 className="page-title">{run.borrower_name}</h1>
+              <h1 className="page-title">Run detail: {run.borrower_name}</h1>
               <div className="page-subtitle">
-                {run.scenario_id} - Autonomy L{run.autonomy_level} - {run.started_at ? new Date(run.started_at).toLocaleString() : '-'}
+                {run.scenario_id} - {autonomyLabel(run.autonomy_level)} - agent output is separated from post-run ground-truth evaluation.
               </div>
               <div className="pill-row" style={{ marginTop: 10 }}>
                 <span className={`badge ${run.ground_truth_fallback_used ? 'badge-warn' : 'badge-pass'}`}>
@@ -157,18 +168,19 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
               </div>
             </div>
             <div style={{ textAlign: 'right', minWidth: 180 }}>
+              <div className="section-label" style={{ marginBottom: 6 }}>Agent output</div>
               <div style={{
                 fontFamily: 'var(--mono)',
                 fontSize: 20,
                 fontWeight: 600,
                 color: verdictColor,
-                letterSpacing: '0.04em',
+                letterSpacing: 0,
                 overflowWrap: 'anywhere',
               }}>
-                {(run.final_verdict ?? 'unknown').toUpperCase().replace('_', ' ')}
+                {formatVerdict(run.final_verdict)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                Expected: {(run.correct_verdict ?? '-').toUpperCase().replace('_', ' ')}
+                Final verdict returned by the run
               </div>
             </div>
           </div>
@@ -180,37 +192,81 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
           <div className="status-callout" style={{ marginBottom: 20, borderLeftColor: 'var(--danger)' }}>
             <strong style={{ color: 'var(--danger)' }}>Process error detected</strong>
             <span>
-              This run returned a correct outcome but skipped required compliance steps. That is the H1 thesis signal: outcome-only evaluation underreports process risk.
+              This run's verdict matched scenario ground truth but skipped required compliance steps. That is the H1 thesis signal: outcome-only evaluation underreports process risk.
             </span>
           </div>
         )}
 
-        <div className="summary-grid" style={{ marginBottom: 24 }}>
-          <MetricTile
-            label="Outcome"
-            value={run.outcome_correct === null ? '-' : run.outcome_correct ? 'CORRECT' : 'WRONG'}
-            color={run.outcome_correct ? 'var(--pass)' : 'var(--danger)'}
-          />
-          <MetricTile
-            label="Clause Coverage"
-            value={`${Math.round((run.clause_coverage_score ?? 0) * 100)}%`}
-            color={(run.clause_coverage_score ?? 0) >= 1 ? 'var(--pass)' : 'var(--danger)'}
-          />
-          <MetricTile
-            label="Trajectory Score"
-            value={`${Math.round((run.trajectory_score ?? 0) * 100)}%`}
-            color="var(--accent-strong)"
-          />
-          <MetricTile
-            label="Tool Accuracy"
-            value={`${Math.round((run.tool_call_accuracy_score ?? 0) * 100)}%`}
-            color="var(--text-secondary)"
-          />
-          <MetricTile
-            label="Duration"
-            value={run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '-'}
-            color="var(--text-secondary)"
-          />
+        <div className="run-result-split" style={{ marginBottom: 24 }}>
+          <section className="card card-pad">
+            <div className="section-label">Agent-produced result</div>
+            <h2 className="page-title">What came directly from the run</h2>
+            <p className="page-subtitle">
+              These fields come from the run itself: the final covenant verdict, runtime, and execution trace.
+            </p>
+            <div className="result-grid" style={{ marginTop: 16 }}>
+              <MetricTile
+                label="Agent verdict"
+                value={formatVerdict(run.final_verdict)}
+                color={verdictColor}
+              />
+              <MetricTile
+                label="Run status"
+                value={(run.status ?? 'unknown').toUpperCase()}
+                color="var(--text-secondary)"
+              />
+              <MetricTile
+                label="Duration"
+                value={run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '-'}
+                color="var(--text-secondary)"
+              />
+              <MetricTile
+                label="Trace events"
+                value={String(run.audit_log_entries?.length ?? 0)}
+                color="var(--accent-strong)"
+              />
+            </div>
+          </section>
+
+          <section className="card card-pad evaluation-panel">
+            <div className="section-label">Evaluator-produced result</div>
+            <h2 className="page-title">What was checked after the run finished</h2>
+            <p className="page-subtitle">
+              This is not part of the agent output. It is computed after the run by comparing the agent verdict and trace against the expected scenario answer.
+            </p>
+            <div className="result-grid" style={{ marginTop: 16 }}>
+              <MetricTile
+                label="Ground truth verdict"
+                value={run.correct_verdict ? formatVerdict(run.correct_verdict) : '-'}
+                color="var(--text-secondary)"
+              />
+              <MetricTile
+                label="Verdict match"
+                value={run.outcome_correct === null ? '-' : run.outcome_correct ? 'MATCH' : 'MISMATCH'}
+                color={run.outcome_correct === null ? 'var(--text-secondary)' : run.outcome_correct ? 'var(--pass)' : 'var(--danger)'}
+              />
+              <MetricTile
+                label="Clause coverage"
+                value={`${Math.round((run.clause_coverage_score ?? 0) * 100)}%`}
+                color={(run.clause_coverage_score ?? 0) >= 1 ? 'var(--pass)' : 'var(--danger)'}
+              />
+              <MetricTile
+                label="Trajectory score"
+                value={`${Math.round((run.trajectory_score ?? 0) * 100)}%`}
+                color="var(--accent-strong)"
+              />
+              <MetricTile
+                label="Tool accuracy"
+                value={`${Math.round((run.tool_call_accuracy_score ?? 0) * 100)}%`}
+                color="var(--text-secondary)"
+              />
+              <MetricTile
+                label="Process review"
+                value={run.process_error_detected ? 'REVIEW' : 'CLEAN'}
+                color={run.process_error_detected ? 'var(--danger)' : 'var(--pass)'}
+              />
+            </div>
+          </section>
         </div>
 
         {run.pdfScenario?.input_summary && (
@@ -280,7 +336,7 @@ export default function RunDetailPage({ params }: { params: { id: string } }) {
                   key={i}
                   className="audit-row"
                   style={{
-                    borderBottom: i < (run.audit_log_entries?.length ?? 0) - 1 ? '1px solid rgba(148,163,184,0.1)' : 'none',
+                    borderBottom: i < (run.audit_log_entries?.length ?? 0) - 1 ? '1px solid var(--border-soft)' : 'none',
                   }}
                 >
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>

@@ -18,6 +18,26 @@ from database.models import AgentRun, TrustResponse
 router = APIRouter(prefix="/trust", tags=["Trust Study"])
 
 
+def _run_snapshot(run: AgentRun | None) -> dict | None:
+    if run is None:
+        return None
+    return {
+        "run_id": run.run_id,
+        "scenario_id": run.scenario_id,
+        "borrower_name": run.borrower_name,
+        "autonomy_level": run.autonomy_level,
+        "status": run.status,
+        "final_verdict": run.final_verdict,
+        "correct_verdict": run.correct_verdict,
+        "outcome_correct": run.outcome_correct,
+        "clause_coverage_score": run.clause_coverage_score,
+        "process_error_detected": run.process_error_detected,
+        "transparency_artifacts_present": run.transparency_artifacts_present,
+        "execution_mode": run.execution_mode,
+        "created_at": run.started_at.isoformat() if run.started_at else None,
+    }
+
+
 class TrustResponseRequest(BaseModel):
     run_id: str
     stakeholder_group: str = Field(pattern="^(technical|non_technical|risk_compliance|business)$")
@@ -54,6 +74,30 @@ async def create_trust_response(
     db.add(response)
     await db.commit()
     return response.to_dict()
+
+
+@router.get("/responses")
+async def list_trust_responses(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(TrustResponse).order_by(TrustResponse.created_at.desc())
+    )
+    responses = result.scalars().all()
+    if not responses:
+        return {"responses": []}
+
+    run_ids = list({response.run_id for response in responses})
+    run_result = await db.execute(select(AgentRun).where(AgentRun.run_id.in_(run_ids)))
+    runs = {run.run_id: run for run in run_result.scalars().all()}
+
+    return {
+        "responses": [
+            {
+                **response.to_dict(),
+                "run": _run_snapshot(runs.get(response.run_id)),
+            }
+            for response in responses
+        ]
+    }
 
 
 @router.get("/analysis")

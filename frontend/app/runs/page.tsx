@@ -12,11 +12,25 @@ const VERDICT_BADGE: Record<string, string> = {
   unknown: 'badge-grey',
 }
 
-function ScoreBar({ value, color = '#3B82F6' }: { value: number; color?: string }) {
+const AUTONOMY_FILTERS = [
+  { value: undefined, label: 'All runs' },
+  { value: 1, label: 'Constrained (L1)' },
+  { value: 2, label: 'Guided (L2)' },
+  { value: 3, label: 'Autonomous (L3)' },
+]
+
+function autonomyLabel(level?: number | null) {
+  if (level === 1) return 'Constrained (L1)'
+  if (level === 2) return 'Guided (L2)'
+  if (level === 3) return 'Autonomous (L3)'
+  return 'Unknown'
+}
+
+function ScoreBar({ value, color = 'var(--accent-strong)' }: { value: number; color?: string }) {
   const pct = Math.round((value ?? 0) * 100)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
-      <div style={{ flex: 1, height: 5, background: 'rgba(101,113,135,0.25)', borderRadius: 999 }}>
+      <div style={{ flex: 1, height: 5, background: 'var(--bar-track)', borderRadius: 999 }}>
         <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: '100%', background: color, borderRadius: 999 }} />
       </div>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
@@ -49,24 +63,27 @@ export default function RunsPage() {
   return (
     <div>
       <div className="page-header">
-        <div className="page-header-inner runs-header-row">
+        <div className="page-header-inner">
           <div>
-            <h1 className="page-title">Agent Runs</h1>
+            <h1 className="page-title">Agent run history: outputs and evaluations side by side</h1>
             <div className="page-subtitle">
-              Complete history of covenant breach agent runs, newest first.
+              Inspect each covenant run in the order it was produced, with agent verdicts separated from post-run comparison to scenario ground truth.
             </div>
-          </div>
-          <div className="filter-row" aria-label="Autonomy filter">
-            {[undefined, 1, 2, 3].map(lvl => (
-              <button
-                key={String(lvl)}
-                onClick={() => setFilter(lvl)}
-                className={`button ${filter === lvl ? 'button-primary' : 'button-secondary'}`}
-                style={{ minHeight: 34, fontFamily: 'var(--mono)', fontSize: 11 }}
-              >
-                {lvl === undefined ? 'ALL' : `L${lvl}`}
-              </button>
-            ))}
+            <div className="autonomy-filter">
+              <span className="autonomy-filter-label">Filter by autonomy level</span>
+              <div className="filter-row" aria-label="Autonomy filter">
+                {AUTONOMY_FILTERS.map(option => (
+                  <button
+                    key={String(option.value)}
+                    onClick={() => setFilter(option.value)}
+                    className={`button ${filter === option.value ? 'button-primary' : 'button-secondary'}`}
+                    style={{ minHeight: 34, fontSize: 12 }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -86,23 +103,29 @@ export default function RunsPage() {
             </div>
           ) : runs.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              No runs yet. Go to the Dashboard to launch an agent run.
+              No runs yet. Go to the Overview page to launch a controlled agent run.
             </div>
           ) : (
             <div className="table-scroll">
               <table>
                 <thead>
+                  <tr className="table-group-row">
+                    <th colSpan={4}>Run context</th>
+                    <th colSpan={1}>Agent output</th>
+                    <th colSpan={5}>Post-run evaluation</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
                   <tr>
-                    <th>Run ID</th>
+                    <th>Run</th>
                     <th>Scenario</th>
                     <th>Borrower</th>
-                    <th>Autonomy</th>
-                    <th>Verdict</th>
-                    <th>Outcome</th>
+                    <th>Autonomy Level</th>
+                    <th>Agent Verdict</th>
+                    <th>Ground Truth Match</th>
                     <th>Clause Coverage</th>
                     <th>Trajectory</th>
                     <th>Duration</th>
-                    <th>Process</th>
+                    <th>Process Review</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -122,7 +145,7 @@ export default function RunsPage() {
                       </td>
                       <td>
                         <span className={`badge ${run.autonomy_level === 1 ? 'badge-pass' : run.autonomy_level === 2 ? 'badge-warn' : 'badge-danger'}`}>
-                          L{run.autonomy_level}
+                          {autonomyLabel(run.autonomy_level)}
                         </span>
                       </td>
                       <td>
@@ -134,9 +157,9 @@ export default function RunsPage() {
                         {run.outcome_correct === null || run.outcome_correct === undefined ? (
                           <span style={{ color: 'var(--text-muted)' }}>-</span>
                         ) : run.outcome_correct ? (
-                          <span style={{ color: 'var(--pass)' }}>YES</span>
+                          <span style={{ color: 'var(--pass)' }}>MATCH</span>
                         ) : (
-                          <span style={{ color: 'var(--danger)' }}>NO</span>
+                          <span style={{ color: 'var(--danger)' }}>MISMATCH</span>
                         )}
                       </td>
                       <td>
