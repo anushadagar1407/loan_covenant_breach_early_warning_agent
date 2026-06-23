@@ -1,5 +1,6 @@
 'use client'
 
+import { ArrowRight } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import type { RegistrySummary } from '../../lib/types'
 
@@ -73,9 +74,9 @@ export const metricDefinitions = [
 ]
 
 const registryTabs = [
-  { href: '/registry', label: 'Concepts', desc: 'Vocabulary and evidence map' },
-  { href: '/registry/metrics', label: 'Metrics', desc: 'How each score is defined' },
-  { href: '/registry/evidence', label: 'Evidence', desc: 'H1/H2 support tables' },
+  { href: '/registry', label: 'Concepts' },
+  { href: '/registry/metrics', label: 'Metrics' },
+  { href: '/registry/evidence', label: 'Evidence' },
 ]
 
 export function RegistryHeader({ title, subtitle, badge = 'Evidence registry' }: {
@@ -105,8 +106,7 @@ export function RegistrySubnav() {
         const active = pathname === tab.href
         return (
           <a key={tab.href} href={tab.href} className={`subpage-tab ${active ? 'subpage-tab-active' : ''}`}>
-            <strong>{tab.label}</strong>
-            <span>{tab.desc}</span>
+            {tab.label}
           </a>
         )
       })}
@@ -121,6 +121,29 @@ export function ConceptTile({ title, body, index }: { title: string; body: strin
       <strong>{title}</strong>
       <p>{body}</p>
     </div>
+  )
+}
+
+export function RouteCard({
+  eyebrow,
+  title,
+  body,
+  href,
+}: {
+  eyebrow: string
+  title: string
+  body: string
+  href: string
+}) {
+  return (
+    <a className="route-card" href={href}>
+      <span>{eyebrow}</span>
+      <strong>
+        {title}
+        <ArrowRight size={14} strokeWidth={2.2} aria-hidden="true" />
+      </strong>
+      <p>{body}</p>
+    </a>
   )
 }
 

@@ -410,17 +410,18 @@ input[type="range"]:focus-visible {
 
 .dashboard-hero h1 {
   max-width: 760px;
-  margin: 7px 0 7px;
-  font-size: clamp(24px, 2.4vw, 34px);
+  margin: 6px 0 6px;
+  font-size: 22px;
   font-weight: 600;
-  line-height: 1.12;
+  line-height: 1.22;
 }
 
 .dashboard-hero p {
   max-width: 760px;
   margin: 0;
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .dashboard-hero-actions {
@@ -440,66 +441,87 @@ input[type="range"]:focus-visible {
 .subpage-tabs {
   display: inline-flex;
   max-width: 100%;
-  gap: 4px;
+  gap: 2px;
   margin-bottom: 20px;
-  padding: 4px;
+  padding: 3px;
   border: 1px solid var(--border-soft);
-  border-radius: 7px;
+  border-radius: 999px;
   background: var(--surface-3);
   box-shadow: inset 0 1px 0 var(--surface-elevated);
 }
 
 .route-card {
   min-width: 0;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--primary-border);
   border-radius: 6px;
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--primary-soft) 100%);
   color: inherit;
   text-decoration: none;
+  box-shadow: var(--shadow-soft);
 }
 
 .subpage-tab {
-  display: inline-flex;
-  min-width: 132px;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 12px;
+  display: inline-grid;
+  min-width: 98px;
+  place-items: center;
+  padding: 7px 15px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 999px;
   background: transparent;
-  color: inherit;
+  color: var(--text-muted);
   text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .subpage-tab:hover,
-.subpage-tab:focus-visible,
-.route-card:hover,
-.route-card:focus-visible {
-  border-color: var(--accent-border);
+.subpage-tab:focus-visible {
+  border-color: var(--primary-border);
+  background: var(--surface-elevated);
+  color: var(--primary);
   outline: none;
 }
 
 .subpage-tab-active {
   border-color: var(--primary-border);
   background: var(--surface);
+  color: var(--primary);
   box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
 }
 
-.subpage-tab strong,
+.route-card:hover,
+.route-card:focus-visible {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  outline: none;
+  transform: translateY(-1px);
+}
+
 .route-card strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   color: var(--text-primary);
   font-size: 13px;
 }
 
-.subpage-tab span,
 .route-card span {
   color: var(--text-muted);
   font-size: 11px;
 }
 
-.subpage-tab-active strong {
+.route-card svg {
+  flex: 0 0 auto;
   color: var(--primary);
+  transition: transform 0.15s ease;
+}
+
+.route-card:hover svg,
+.route-card:focus-visible svg {
+  transform: translateX(2px);
 }
 
 .route-card-grid {
@@ -512,6 +534,8 @@ input[type="range"]:focus-visible {
   display: grid;
   gap: 6px;
   padding: 16px;
+  border-left-width: 3px;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .route-card p {
@@ -530,15 +554,22 @@ input[type="range"]:focus-visible {
   min-width: 0;
   padding: 14px;
   border: 1px solid var(--border-soft);
+  border-left: 0;
   border-radius: 6px;
-  background: var(--surface-2);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .concept-tile span {
-  display: block;
-  color: var(--accent-strong);
+  display: inline-flex;
+  min-width: 28px;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  color: var(--text-muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
 }
 
@@ -1131,6 +1162,31 @@ td {
 
 .table-group-row th + th {
   border-left: 1px solid var(--border-soft);
+}
+
+.table-section-start {
+  border-left: 1px solid var(--border-soft);
+}
+
+.review-score {
+  display: inline-flex;
+  min-width: 54px;
+  justify-content: center;
+  padding: 4px 8px;
+  border: 1px solid var(--primary-border);
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.review-score-empty {
+  min-width: 72px;
+  border-color: var(--border-soft);
+  background: var(--surface-3);
+  color: var(--text-muted);
 }
 
 tr:hover td {

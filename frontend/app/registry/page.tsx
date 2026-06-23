@@ -8,6 +8,7 @@ import {
   RegistryHeader,
   RegistrySubnav,
   RegistrySummaryCards,
+  RouteCard,
   registryConcepts,
 } from './components'
 
@@ -45,21 +46,24 @@ export default function RegistryPage() {
         <RegistrySummaryCards summary={summary} />
 
         <section className="route-card-grid">
-          <a className="route-card" href="/registry/metrics">
-            <span>Next section</span>
-            <strong>Metric definitions</strong>
-            <p>See how trajectory, tool accuracy, clause coverage, latency, and process-outcome gap are calculated.</p>
-          </a>
-          <a className="route-card" href="/registry/evidence">
-            <span>Evidence section</span>
-            <strong>H1/H2 support tables</strong>
-            <p>Review hidden process gaps and process-error rates by autonomy level without mixing them into the concept page.</p>
-          </a>
-          <a className="route-card" href="/runs">
-            <span>Underlying records</span>
-            <strong>Agent run history</strong>
-            <p>Open the run list when you need the raw output and post-run evaluation for an individual scenario.</p>
-          </a>
+          <RouteCard
+            eyebrow="Next section"
+            title="Metric definitions"
+            href="/registry/metrics"
+            body="See how trajectory, tool accuracy, clause coverage, latency, and process-outcome gap are calculated."
+          />
+          <RouteCard
+            eyebrow="Evidence section"
+            title="H1/H2 support tables"
+            href="/registry/evidence"
+            body="Review hidden process gaps and process-error rates by autonomy level without mixing them into the concept page."
+          />
+          <RouteCard
+            eyebrow="Underlying records"
+            title="Agent run history"
+            href="/runs"
+            body="Open the run list when you need the raw output and post-run evaluation for an individual scenario."
+          />
         </section>
       </div>
     </div>
