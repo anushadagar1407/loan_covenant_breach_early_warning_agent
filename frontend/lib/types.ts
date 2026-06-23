@@ -154,10 +154,35 @@ export interface TrustResponsePayload {
   stakeholder_group: 'technical' | 'non_technical' | 'risk_compliance' | 'business';
   transparency_condition: 'outcome_only' | 'transparent';
   trust_score: number;
-  auditability_score?: number;
-  reliability_score?: number;
-  explanation_sufficiency_score?: number;
-  comments?: string;
+  auditability_score?: number | null;
+  reliability_score?: number | null;
+  explanation_sufficiency_score?: number | null;
+  comments?: string | null;
+}
+
+export interface TrustResponseRecord extends TrustResponsePayload {
+  response_id: string;
+  response_source?: 'human' | 'synthetic_demo' | string;
+  created_at?: string | null;
+  auditability_score?: number | null;
+  reliability_score?: number | null;
+  explanation_sufficiency_score?: number | null;
+  comments?: string | null;
+  run?: {
+    run_id: string;
+    scenario_id?: string;
+    borrower_name?: string;
+    autonomy_level?: number;
+    status?: string;
+    final_verdict?: string | null;
+    correct_verdict?: string | null;
+    outcome_correct?: boolean | null;
+    clause_coverage_score?: number | null;
+    process_error_detected?: boolean | null;
+    transparency_artifacts_present?: boolean | null;
+    execution_mode?: string | null;
+    created_at?: string | null;
+  } | null;
 }
 
 export interface TrustAnalysis {

@@ -24,13 +24,13 @@ seed-trust-pilot:
 # Run
 
 backend:
-	cd backend && uvicorn api.main:app --reload --port 8000
+	cd backend && python -m uvicorn api.main:app --reload --port 8010
 
 frontend:
 	cd frontend && npm run dev
 
 dev:
-	@echo "Starting backend on :8000 and frontend on :3000"
+	@echo "Starting backend on :8010 and frontend on :3000"
 	@echo "Run 'make backend' and 'make frontend' in separate terminals."
 
 # Utility

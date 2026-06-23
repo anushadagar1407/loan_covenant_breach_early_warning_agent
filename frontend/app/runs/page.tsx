@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
-import type { AgentRun } from '../../lib/types'
+import type { AgentRun, TrustResponseRecord } from '../../lib/types'
 
 const VERDICT_BADGE: Record<string, string> = {
   no_breach: 'badge-pass',
@@ -12,11 +12,67 @@ const VERDICT_BADGE: Record<string, string> = {
   unknown: 'badge-grey',
 }
 
-function ScoreBar({ value, color = '#3B82F6' }: { value: number; color?: string }) {
+const AUTONOMY_FILTERS = [
+  { value: undefined, label: 'All runs' },
+  { value: 1, label: 'Constrained (L1)' },
+  { value: 2, label: 'Guided (L2)' },
+  { value: 3, label: 'Autonomous (L3)' },
+]
+
+function autonomyLabel(level?: number | null) {
+  if (level === 1) return 'Constrained (L1)'
+  if (level === 2) return 'Guided (L2)'
+  if (level === 3) return 'Autonomous (L3)'
+  return 'Unknown'
+}
+
+type RunReview = {
+  trustScore: number | null
+  auditabilityScore: number | null
+  count: number
+}
+
+function average(values: number[]) {
+  if (!values.length) return null
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function buildReviewMap(responses: TrustResponseRecord[]) {
+  const buckets: Record<string, { trust: number[]; auditability: number[]; count: number }> = {}
+
+  responses.forEach(response => {
+    if (!buckets[response.run_id]) buckets[response.run_id] = { trust: [], auditability: [], count: 0 }
+    buckets[response.run_id].count += 1
+    if (typeof response.trust_score === 'number') buckets[response.run_id].trust.push(response.trust_score)
+    if (typeof response.auditability_score === 'number') buckets[response.run_id].auditability.push(response.auditability_score)
+  })
+
+  return Object.fromEntries(
+    Object.entries(buckets).map(([runId, bucket]) => [runId, {
+      trustScore: average(bucket.trust),
+      auditabilityScore: average(bucket.auditability),
+      count: bucket.count,
+    }])
+  ) as Record<string, RunReview>
+}
+
+function ReviewScore({ value, count }: { value?: number | null; count?: number }) {
+  if (value === null || value === undefined) {
+    return <span className="review-score review-score-empty">No review</span>
+  }
+
+  return (
+    <span className="review-score" title={count && count > 1 ? `Average of ${count} reviews` : 'Reviewer score'}>
+      {value.toFixed(1)}/7
+    </span>
+  )
+}
+
+function ScoreBar({ value, color = 'var(--accent-strong)' }: { value: number; color?: string }) {
   const pct = Math.round((value ?? 0) * 100)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
-      <div style={{ flex: 1, height: 5, background: 'rgba(101,113,135,0.25)', borderRadius: 999 }}>
+      <div style={{ flex: 1, height: 5, background: 'var(--bar-track)', borderRadius: 999 }}>
         <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: '100%', background: color, borderRadius: 999 }} />
       </div>
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
@@ -26,6 +82,7 @@ function ScoreBar({ value, color = '#3B82F6' }: { value: number; color?: string 
 
 export default function RunsPage() {
   const [runs, setRuns] = useState<AgentRun[]>([])
+  const [reviewByRun, setReviewByRun] = useState<Record<string, RunReview>>({})
   const [filter, setFilter] = useState<number | undefined>()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,13 +90,24 @@ export default function RunsPage() {
   const load = (level?: number) => {
     setLoading(true)
     setError(null)
-    api.getRuns(1, level).then(r => {
-      setRuns(r.runs)
+    Promise.allSettled([
+      api.getRuns(1, level),
+      api.getTrustResponses(),
+    ]).then(([runsResult, trustResult]) => {
+      if (runsResult.status === 'rejected') throw runsResult.reason
+
+      setRuns(runsResult.value.runs)
+      setReviewByRun(
+        trustResult.status === 'fulfilled'
+          ? buildReviewMap(trustResult.value.responses ?? [])
+          : {}
+      )
       setLoading(false)
     }).catch(err => {
       console.error('Failed to load runs', err)
       setError((err as Error)?.message ?? 'Unable to load runs from backend')
       setRuns([])
+      setReviewByRun({})
       setLoading(false)
     })
   }
@@ -49,24 +117,27 @@ export default function RunsPage() {
   return (
     <div>
       <div className="page-header">
-        <div className="page-header-inner runs-header-row">
+        <div className="page-header-inner">
           <div>
-            <h1 className="page-title">Agent Runs</h1>
+            <h1 className="page-title">Agent run history: outputs and evaluations side by side</h1>
             <div className="page-subtitle">
-              Complete history of covenant breach agent runs, newest first.
+              Inspect each covenant run in the order it was produced, with agent verdicts separated from post-run comparison to scenario ground truth.
             </div>
-          </div>
-          <div className="filter-row" aria-label="Autonomy filter">
-            {[undefined, 1, 2, 3].map(lvl => (
-              <button
-                key={String(lvl)}
-                onClick={() => setFilter(lvl)}
-                className={`button ${filter === lvl ? 'button-primary' : 'button-secondary'}`}
-                style={{ minHeight: 34, fontFamily: 'var(--mono)', fontSize: 11 }}
-              >
-                {lvl === undefined ? 'ALL' : `L${lvl}`}
-              </button>
-            ))}
+            <div className="autonomy-filter">
+              <span className="autonomy-filter-label">Filter by autonomy level</span>
+              <div className="filter-row" aria-label="Autonomy filter">
+                {AUTONOMY_FILTERS.map(option => (
+                  <button
+                    key={String(option.value)}
+                    onClick={() => setFilter(option.value)}
+                    className={`button ${filter === option.value ? 'button-primary' : 'button-secondary'}`}
+                    style={{ minHeight: 34, fontSize: 12 }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -86,88 +157,93 @@ export default function RunsPage() {
             </div>
           ) : runs.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              No runs yet. Go to the Dashboard to launch an agent run.
+              No runs yet. Go to the Overview page to launch a controlled agent run.
             </div>
           ) : (
             <div className="table-scroll">
               <table>
                 <thead>
+                  <tr className="table-group-row">
+                    <th colSpan={4}>Run details</th>
+                    <th colSpan={4}>Run result</th>
+                    <th colSpan={2}>User review</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
                   <tr>
-                    <th>Run ID</th>
+                    <th>ID</th>
                     <th>Scenario</th>
+                    <th>Autonomy Level</th>
                     <th>Borrower</th>
-                    <th>Autonomy</th>
-                    <th>Verdict</th>
-                    <th>Outcome</th>
+                    <th className="table-section-start">Verdict</th>
+                    <th>Ground Truth Match</th>
                     <th>Clause Coverage</th>
                     <th>Trajectory</th>
-                    <th>Duration</th>
-                    <th>Process</th>
+                    <th className="table-section-start">Trust</th>
+                    <th>Auditability</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {runs.map(run => (
-                    <tr
-                      key={run.run_id}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => window.location.href = `/runs/${run.run_id}`}
-                    >
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-                        {run.run_id.slice(0, 8)}
-                      </td>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{run.scenario_id}</td>
-                      <td className="truncate-cell" style={{ fontSize: 12 }}>
-                        {run.borrower_name}
-                      </td>
-                      <td>
-                        <span className={`badge ${run.autonomy_level === 1 ? 'badge-pass' : run.autonomy_level === 2 ? 'badge-warn' : 'badge-danger'}`}>
-                          L{run.autonomy_level}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge ${VERDICT_BADGE[run.final_verdict ?? 'unknown'] ?? 'badge-grey'}`}>
-                          {(run.final_verdict ?? 'unknown').toUpperCase().replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'center' }}>
-                        {run.outcome_correct === null || run.outcome_correct === undefined ? (
-                          <span style={{ color: 'var(--text-muted)' }}>-</span>
-                        ) : run.outcome_correct ? (
-                          <span style={{ color: 'var(--pass)' }}>YES</span>
-                        ) : (
-                          <span style={{ color: 'var(--danger)' }}>NO</span>
-                        )}
-                      </td>
-                      <td>
-                        <ScoreBar
-                          value={run.clause_coverage_score ?? 0}
-                          color={(run.clause_coverage_score ?? 0) >= 1 ? 'var(--pass)' : 'var(--danger)'}
-                        />
-                      </td>
-                      <td>
-                        <ScoreBar value={run.trajectory_score ?? 0} color="var(--accent-strong)" />
-                      </td>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
-                        {run.duration_seconds ? `${run.duration_seconds.toFixed(1)}s` : '-'}
-                      </td>
-                      <td>
-                        {run.process_error_detected ? (
-                          <span className="badge badge-danger">ERROR</span>
-                        ) : (
-                          <span className="badge badge-pass">CLEAN</span>
-                        )}
-                      </td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <a
-                          href={`/runs/${run.run_id}`}
-                          style={{ fontSize: 11, color: 'var(--accent-strong)', textDecoration: 'none', fontFamily: 'var(--mono)' }}
-                        >
-                          VIEW
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
+                  {runs.map(run => {
+                    const review = reviewByRun[run.run_id]
+                    return (
+                      <tr
+                        key={run.run_id}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => window.location.href = `/runs/${run.run_id}`}
+                      >
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                          {run.run_id.slice(0, 8)}
+                        </td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{run.scenario_id}</td>
+                        <td>
+                          <span className={`badge ${run.autonomy_level === 1 ? 'badge-pass' : run.autonomy_level === 2 ? 'badge-warn' : 'badge-danger'}`}>
+                            {autonomyLabel(run.autonomy_level)}
+                          </span>
+                        </td>
+                        <td className="truncate-cell" style={{ fontSize: 12 }}>
+                          {run.borrower_name}
+                        </td>
+                        <td className="table-section-start">
+                          <span className={`badge ${VERDICT_BADGE[run.final_verdict ?? 'unknown'] ?? 'badge-grey'}`}>
+                            {(run.final_verdict ?? 'unknown').toUpperCase().replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12, textAlign: 'center' }}>
+                          {run.outcome_correct === null || run.outcome_correct === undefined ? (
+                            <span style={{ color: 'var(--text-muted)' }}>-</span>
+                          ) : run.outcome_correct ? (
+                            <span style={{ color: 'var(--pass)' }}>MATCH</span>
+                          ) : (
+                            <span style={{ color: 'var(--danger)' }}>MISMATCH</span>
+                          )}
+                        </td>
+                        <td>
+                          <ScoreBar
+                            value={run.clause_coverage_score ?? 0}
+                            color={(run.clause_coverage_score ?? 0) >= 1 ? 'var(--pass)' : 'var(--danger)'}
+                          />
+                        </td>
+                        <td>
+                          <ScoreBar value={run.trajectory_score ?? 0} color="var(--accent-strong)" />
+                        </td>
+                        <td className="table-section-start">
+                          <ReviewScore value={review?.trustScore} count={review?.count} />
+                        </td>
+                        <td>
+                          <ReviewScore value={review?.auditabilityScore} count={review?.count} />
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <a
+                            href={`/runs/${run.run_id}`}
+                            style={{ fontSize: 11, color: 'var(--accent-strong)', textDecoration: 'none', fontFamily: 'var(--mono)' }}
+                          >
+                            VIEW
+                          </a>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
