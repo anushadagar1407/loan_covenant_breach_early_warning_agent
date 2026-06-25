@@ -6,8 +6,7 @@ import type { RegistrySummary } from '../../../lib/types'
 import {
   AutonomyRow,
   RegistryHeader,
-  RegistrySubnav,
-  RegistrySummaryCards,
+  RegistrySectionNav,
 } from '../components'
 
 export default function RegistryEvidencePage() {
@@ -31,9 +30,7 @@ export default function RegistryEvidencePage() {
       />
 
       <div className="page-content">
-        <RegistrySubnav />
-
-        <RegistrySummaryCards summary={summary} />
+        <RegistrySectionNav summary={summary} />
 
         <section className="card table-card" style={{ marginBottom: 20 }}>
           <div className="card-pad" style={{ paddingBottom: 10 }}>

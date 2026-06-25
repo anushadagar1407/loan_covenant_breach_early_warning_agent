@@ -6,8 +6,7 @@ import type { RegistrySummary } from '../../lib/types'
 import {
   ConceptTile,
   RegistryHeader,
-  RegistrySubnav,
-  RegistrySummaryCards,
+  RegistrySectionNav,
   RouteCard,
   registryConcepts,
 } from './components'
@@ -27,7 +26,7 @@ export default function RegistryPage() {
       />
 
       <div className="page-content">
-        <RegistrySubnav />
+        <RegistrySectionNav summary={summary} />
 
         <section className="card card-pad" style={{ marginBottom: 20 }}>
           <div className="section-label">Concepts before metrics</div>
@@ -42,8 +41,6 @@ export default function RegistryPage() {
             ))}
           </div>
         </section>
-
-        <RegistrySummaryCards summary={summary} />
 
         <section className="route-card-grid">
           <RouteCard

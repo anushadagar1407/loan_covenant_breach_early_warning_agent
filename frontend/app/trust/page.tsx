@@ -167,10 +167,13 @@ export default function TrustStudyPage() {
                 This screen hides the gold standard and aggregate results so participants rate the output rather than the surrounding dashboard.
               </div>
             </div>
-            <a className="button button-secondary" href="/trust/results">
-              <BarChart3 size={16} aria-hidden="true" />
-              View results
-            </a>
+            <div className="header-action-stack">
+              <a className="button button-secondary" href="/trust/results">
+                <BarChart3 size={16} aria-hidden="true" />
+                Open trust results
+              </a>
+              <span>Shows gold-standard comparison, aggregate trust metrics, and H3/H4 analysis.</span>
+            </div>
           </div>
         </div>
       </div>

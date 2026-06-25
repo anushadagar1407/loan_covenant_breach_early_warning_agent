@@ -6,8 +6,7 @@ import type { RegistrySummary } from '../../../lib/types'
 import {
   MetricDefinition,
   RegistryHeader,
-  RegistrySubnav,
-  RegistrySummaryCards,
+  RegistrySectionNav,
   metricDefinitions,
 } from '../components'
 
@@ -26,9 +25,7 @@ export default function RegistryMetricsPage() {
       />
 
       <div className="page-content">
-        <RegistrySubnav />
-
-        <RegistrySummaryCards summary={summary} />
+        <RegistrySectionNav summary={summary} />
 
         <section className="card card-pad">
           <div className="section-label">Process-level evaluation framework</div>

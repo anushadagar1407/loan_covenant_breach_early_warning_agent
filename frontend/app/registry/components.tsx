@@ -206,6 +206,15 @@ export function RegistrySummaryCards({ summary }: { summary: RegistrySummary | n
   )
 }
 
+export function RegistrySectionNav({ summary }: { summary: RegistrySummary | null }) {
+  return (
+    <div className="registry-section-nav">
+      <RegistrySummaryCards summary={summary} />
+      <RegistrySubnav />
+    </div>
+  )
+}
+
 export function AutonomyRow({ level, data }: { level: number; data: any }) {
   if (!data?.count) return null
   const labels = { 1: 'Constrained - explicit workflow', 2: 'Guided - bounded judgment', 3: 'Autonomous - open sequence' }
