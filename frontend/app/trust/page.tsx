@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3 } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { AgentRun } from '../../lib/types'
 import {
@@ -156,23 +155,14 @@ export default function TrustStudyPage() {
     <div>
       <div className="page-header">
         <div className="page-header-inner">
-          <div className="detail-header-row">
-            <div>
-              <div className="pill-row" style={{ alignItems: 'center', marginBottom: 10 }}>
-                <span className="badge badge-blue">Trust collection</span>
-                <span className="eyebrow">Neutral stimulus, then rating</span>
-              </div>
-              <h1 className="page-title">Trust collection: show the agent output, then record the rating.</h1>
-              <div className="page-subtitle">
-                This screen hides the gold standard and aggregate results so participants rate the output rather than the surrounding dashboard.
-              </div>
+          <div>
+            <div className="pill-row" style={{ alignItems: 'center', marginBottom: 10 }}>
+              <span className="badge badge-blue">Trust collection</span>
+              <span className="eyebrow">Neutral stimulus, then rating</span>
             </div>
-            <div className="header-action-stack">
-              <a className="button button-secondary" href="/trust/results">
-                <BarChart3 size={16} aria-hidden="true" />
-                Open trust results
-              </a>
-              <span>Shows gold-standard comparison, aggregate trust metrics, and H3/H4 analysis.</span>
+            <h1 className="page-title">Trust collection: show the agent output, then record the rating.</h1>
+            <div className="page-subtitle">
+              This screen hides the gold standard and aggregate results so participants rate the output rather than the surrounding dashboard.
             </div>
           </div>
         </div>
@@ -273,7 +263,9 @@ export default function TrustStudyPage() {
               >
                 {submitting ? 'Saving...' : 'Record trust response'}
               </button>
-              <a className="button button-ghost" href="/trust/results">Open separated results</a>
+              <span className="form-help">
+                Use Trust Results in the sidebar to review gold-standard comparison, aggregate trust metrics, and H3/H4 analysis.
+              </span>
             </div>
           </div>
         </section>
