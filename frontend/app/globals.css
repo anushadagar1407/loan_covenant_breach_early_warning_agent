@@ -58,6 +58,8 @@
   --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   --sans: "Segoe UI", Inter, Arial, sans-serif;
   --sidebar-width: 232px;
+  --content-width: 1280px;
+  --content-gutter: clamp(16px, 3vw, 32px);
 }
 
 html,
@@ -229,6 +231,9 @@ code {
 .app-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .page-header {
@@ -240,10 +245,10 @@ code {
 
 .page-header-inner,
 .page-content {
-  width: min(100%, 1280px);
+  width: min(100%, var(--content-width));
   margin: 0 auto;
-  padding-right: clamp(16px, 3vw, 32px);
-  padding-left: clamp(16px, 3vw, 32px);
+  padding-right: var(--content-gutter);
+  padding-left: var(--content-gutter);
 }
 
 .page-header-inner {
