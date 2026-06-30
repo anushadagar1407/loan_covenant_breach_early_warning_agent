@@ -6,14 +6,18 @@ import { usePathname } from 'next/navigation'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Gauge },
-  { href: '/defense', label: 'Thesis Evidence', icon: FileCheck2 },
-  { href: '/runs', label: 'Agent Runs', icon: BarChart3 },
+  { href: '/defense', label: 'Research Goal', icon: FileCheck2 },
+  { href: '/runs', label: 'Agent Run and Results', icon: BarChart3 },
   { href: '/registry', label: 'Registry', icon: Database },
   { href: '/trust', label: 'Trust Study', icon: ClipboardCheck },
+  { href: '/trust/results', label: 'Trust Results', icon: BarChart3 },
 ]
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const activeHref = navItems
+    .filter(({ href }) => pathname === href || (href !== '/' && pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href
 
   return (
     <html lang="en">
@@ -43,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <a
                   key={href}
                   href={href}
-                  className={`app-nav-link ${pathname === href || (href !== '/' && pathname.startsWith(href)) ? 'app-nav-link-active' : ''}`}
+                  className={`app-nav-link ${activeHref === href ? 'app-nav-link-active' : ''}`}
                 >
                   <span className="app-nav-icon" aria-hidden="true">
                     <Icon size={16} strokeWidth={1.9} />

@@ -9,9 +9,10 @@ async function fetchJSON<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  getRuns: (page = 1, autonomyLevel?: number): Promise<{ runs: AgentRun[]; page: number }> => {
+  getRuns: (page = 1, autonomyLevel?: number, perPage?: number): Promise<{ runs: AgentRun[]; page: number; per_page?: number }> => {
     const qs = new URLSearchParams({ page: String(page) })
     if (autonomyLevel) qs.set('autonomy_level', String(autonomyLevel))
+    if (perPage) qs.set('per_page', String(perPage))
     return fetchJSON(`/api/runs?${qs}`)
   },
 

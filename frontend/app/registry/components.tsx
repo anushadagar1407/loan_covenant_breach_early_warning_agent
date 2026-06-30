@@ -1,7 +1,6 @@
 'use client'
 
 import { ArrowRight } from 'lucide-react'
-import { usePathname } from 'next/navigation'
 import type { RegistrySummary } from '../../lib/types'
 
 export const registryConcepts = [
@@ -73,10 +72,12 @@ export const metricDefinitions = [
   },
 ]
 
-const registryTabs = [
-  { href: '/registry', label: 'Concepts' },
-  { href: '/registry/metrics', label: 'Metrics' },
-  { href: '/registry/evidence', label: 'Evidence' },
+export type RegistryTabId = 'concepts' | 'metrics' | 'evidence'
+
+const registryTabs: Array<{ id: RegistryTabId; label: string }> = [
+  { id: 'concepts', label: 'Concepts' },
+  { id: 'metrics', label: 'Metrics' },
+  { id: 'evidence', label: 'Evidence' },
 ]
 
 export function RegistryHeader({ title, subtitle, badge = 'Evidence registry' }: {
@@ -98,19 +99,31 @@ export function RegistryHeader({ title, subtitle, badge = 'Evidence registry' }:
   )
 }
 
-export function RegistrySubnav() {
-  const pathname = usePathname()
+export function RegistrySubnav({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: RegistryTabId
+  onTabChange: (tab: RegistryTabId) => void
+}) {
   return (
-    <nav className="subpage-tabs" aria-label="Registry sections">
+    <div className="subpage-tabs" role="tablist" aria-label="Registry sections">
       {registryTabs.map(tab => {
-        const active = pathname === tab.href
+        const active = activeTab === tab.id
         return (
-          <a key={tab.href} href={tab.href} className={`subpage-tab ${active ? 'subpage-tab-active' : ''}`}>
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            className={`subpage-tab ${active ? 'subpage-tab-active' : ''}`}
+            onClick={() => onTabChange(tab.id)}
+          >
             {tab.label}
-          </a>
+          </button>
         )
       })}
-    </nav>
+    </div>
   )
 }
 
@@ -129,21 +142,37 @@ export function RouteCard({
   title,
   body,
   href,
+  onClick,
 }: {
   eyebrow: string
   title: string
   body: string
-  href: string
+  href?: string
+  onClick?: () => void
 }) {
-  return (
-    <a className="route-card" href={href}>
+  const content = (
+    <>
       <span>{eyebrow}</span>
       <strong>
         {title}
         <ArrowRight size={14} strokeWidth={2.2} aria-hidden="true" />
       </strong>
       <p>{body}</p>
-    </a>
+    </>
+  )
+
+  if (href) {
+    return (
+      <a className="route-card" href={href}>
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <button type="button" className="route-card route-card-button" onClick={onClick}>
+      {content}
+    </button>
   )
 }
 
@@ -202,6 +231,23 @@ export function RegistrySummaryCards({ summary }: { summary: RegistrySummary | n
         color={(summary?.compliance_rate ?? 0) >= 0.9 ? 'var(--pass)' : 'var(--warn)'}
         sub="Clause coverage equals 100%"
       />
+    </div>
+  )
+}
+
+export function RegistrySectionNav({
+  summary,
+  activeTab,
+  onTabChange,
+}: {
+  summary: RegistrySummary | null
+  activeTab: RegistryTabId
+  onTabChange: (tab: RegistryTabId) => void
+}) {
+  return (
+    <div className="registry-section-nav">
+      <RegistrySummaryCards summary={summary} />
+      <RegistrySubnav activeTab={activeTab} onTabChange={onTabChange} />
     </div>
   )
 }
