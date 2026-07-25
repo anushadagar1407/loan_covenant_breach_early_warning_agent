@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '../../../lib/api'
+import { formatPValue } from '../../../lib/format'
 import type { RegistrySummary, TrustAnalysis } from '../../../lib/types'
 
 type HypothesisStatus = 'supported' | 'partial' | 'pilot' | 'instrumented' | 'collecting' | 'missing'
@@ -265,7 +266,7 @@ export default function DefensePage() {
             title="Outcome metrics mask process risk"
             claim="Correct final verdicts can still contain skipped compliance steps, incomplete clause coverage, or weak trajectory evidence."
             measure="Outcome correctness versus clause coverage, trajectory score, and audit trace."
-            evidence={h1 ? `Gap mean ${pct(h1.gap_score_mean)}, p=${h1.p_value.toFixed(4)}, ${h1.runs_with_gap}/${h1.total_runs} hidden-gap runs.` : 'No registry summary loaded.'}
+            evidence={h1 ? `Gap mean ${pct(h1.gap_score_mean)}, p=${formatPValue(h1.p_value)}, ${h1.runs_with_gap}/${h1.total_runs} hidden-gap runs.` : 'No registry summary loaded.'}
             status={h1?.significant_at_0_05 ? 'supported' : summary ? 'partial' : 'missing'}
           />
           <ThesisClaimCard

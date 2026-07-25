@@ -125,8 +125,11 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
         return _empty_h2("H2 not evaluated - no completed runs are available.")
 
     levels = [1, 2, 3]
-    error_rates = []
-    coverage_scores = []
+    # Keyed by autonomy level (not positional) so a level with zero runs
+    # cannot shift a higher level's stats into the wrong "level_N" slot.
+    error_rates_by_level: Dict[int, float] = {}
+    coverage_scores_by_level: Dict[int, float] = {}
+    contingency_by_level: Dict[int, List[int]] = {}
 
     for level in levels:
         level_runs = [r for r in runs if r.autonomy_level == level]
@@ -137,17 +140,14 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
         # Normalize None -> 0.0 so numpy.mean does not break
         coverage = [(r.clause_coverage_score or 0.0) for r in level_runs]
 
-        error_rates.append(float(np.mean(errors)))
-        coverage_scores.append(float(np.mean(coverage)))
+        error_rates_by_level[level] = float(np.mean(errors))
+        coverage_scores_by_level[level] = float(np.mean(coverage))
 
-    contingency = []
-    for level in levels:
-        level_runs = [r for r in runs if r.autonomy_level == level]
-        if len(level_runs) == 0:
-            continue
-        errors = sum(1 if r.process_error_detected else 0 for r in level_runs)
-        no_errors = len(level_runs) - errors
-        contingency.append([errors, no_errors])
+        error_count = sum(errors)
+        no_errors = len(level_runs) - error_count
+        contingency_by_level[level] = [error_count, no_errors]
+
+    contingency = list(contingency_by_level.values())
 
     if len(contingency) >= 2 and len({tuple(row) for row in contingency}) > 1:
         chi2, p_value, dof, expected = stats.chi2_contingency(contingency)
@@ -175,12 +175,12 @@ def validate_h2_autonomy_errors(runs: List) -> Dict:
 
     return {
         "hypothesis": "H2: Autonomy increases process errors",
-        "level_1_error_rate": float(error_rates[0]) if len(error_rates) > 0 else None,
-        "level_2_error_rate": float(error_rates[1]) if len(error_rates) > 1 else None,
-        "level_3_error_rate": float(error_rates[2]) if len(error_rates) > 2 else None,
-        "level_1_coverage": float(coverage_scores[0]) if len(coverage_scores) > 0 else None,
-        "level_2_coverage": float(coverage_scores[1]) if len(coverage_scores) > 1 else None,
-        "level_3_coverage": float(coverage_scores[2]) if len(coverage_scores) > 2 else None,
+        "level_1_error_rate": error_rates_by_level.get(1),
+        "level_2_error_rate": error_rates_by_level.get(2),
+        "level_3_error_rate": error_rates_by_level.get(3),
+        "level_1_coverage": coverage_scores_by_level.get(1),
+        "level_2_coverage": coverage_scores_by_level.get(2),
+        "level_3_coverage": coverage_scores_by_level.get(3),
         "chi_square_statistic": _finite(chi2),
         "chi_square_p_value": _finite(p_value, 1.0),
         "spearman_correlation": correlation,

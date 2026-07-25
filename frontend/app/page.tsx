@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Info } from "lucide-react";
 import type { RegistrySummary, RunDetail, Scenario } from "@/lib/types";
+import { formatPValue } from "@/lib/format";
 
 type RunPhase = "form" | "running" | "done" | "error";
 
@@ -112,7 +113,7 @@ export default function Dashboard() {
             <MetricCard
               title="Process-outcome gap"
               value={h1.significant_at_0_05 ? `+${(h1.gap_score_mean * 100).toFixed(1)}%` : "N/S"}
-              subtitle={`p=${h1.p_value.toFixed(4)}`}
+              subtitle={`p=${formatPValue(h1.p_value)}`}
               tone={h1.significant_at_0_05 ? "warn" : "neutral"}
               info="Difference between process error rate and final-verdict error rate. N/S means the current completed-run cohort is not statistically significant yet."
             />
@@ -158,7 +159,7 @@ export default function Dashboard() {
                       label="95% confidence interval"
                       value={`[${(h1.confidence_interval_95[0] * 100).toFixed(1)}%, ${(h1.confidence_interval_95[1] * 100).toFixed(1)}%]`}
                     />
-                    <StatRow label="P-value" value={h1.p_value.toFixed(6)} highlight={h1.p_value < 0.05} />
+                    <StatRow label="P-value" value={formatPValue(h1.p_value, 6)} highlight={h1.p_value < 0.05} />
                     <StatRow label="Cohen's d" value={`${h1.cohens_d.toFixed(3)} (${h1.effect_size_interpretation})`} />
                   </div>
                 </div>
@@ -227,7 +228,7 @@ export default function Dashboard() {
                 {h2.level_3_error_rate !== undefined && <LevelBar level="Autonomous workflow (L3)" errorRate={h2.level_3_error_rate} />}
               </div>
               <div className="stat-list" style={{ marginTop: 18 }}>
-                <StatRow label="Chi-square p" value={h2.chi_square_p_value.toFixed(6)} highlight={h2.chi_square_p_value < 0.05} />
+                <StatRow label="Chi-square p" value={formatPValue(h2.chi_square_p_value, 6)} highlight={h2.chi_square_p_value < 0.05} />
                 <StatRow label="Spearman correlation" value={`${h2.spearman_correlation.toFixed(3)} (${h2.trend_direction})`} />
               </div>
               <div className="status-callout" style={{ marginTop: 16, borderLeftColor: "var(--accent)" }}>

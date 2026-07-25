@@ -31,3 +31,7 @@ backend/data/synthetic_pdfs/*_reduced.pdf
 # OS files
 .DS_Store
 Thumbs.db
+
+# Build/debug artifacts
+*.tsbuildinfo
+backend/bulk_run_log.txt

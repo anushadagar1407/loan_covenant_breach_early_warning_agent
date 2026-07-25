@@ -1,0 +1,26 @@
+services:
+  # FastAPI backend
+  - type: web
+    name: covenant-breach-backend
+    env: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: ALLOW_GROUND_TRUTH_FALLBACK
+        value: "1"
+
+  # Next.js frontend
+  - type: web
+    name: covenant-breach-frontend
+    env: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: BACKEND_URL
+        value: https://covenant-breach-backend.onrender.com
